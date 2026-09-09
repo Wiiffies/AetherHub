@@ -85,6 +85,52 @@
     if (b) bringToFront(b);
   }, true);
 
+  /* ---------- grab any window by its frame, not just the title ---------- */
+  var EDGE_PX = 8,
+      NO_GRAB = "button,input,textarea,canvas,select,a,.check,.radio,.keyfield,.swatch,.wall,.rail,.thumb,.tab,.codebox,.stat,.pal,.walls,.minebar,.counter,.mineface,.cell,.combo,.cfield,.notepad";
+  function frameMover(root) {
+    root.addEventListener("pointerdown", function (e) {
+      if (root === win && maximized) return;
+      if (!e.target.closest) return;
+      if (e.target.closest(".wintitle,#titlebar,#wallTitle")) return;
+      if (e.target.closest(NO_GRAB)) return;
+      var sc = e.target.closest(".page,.winbody");
+      if (sc) {
+        var sr = sc.getBoundingClientRect();
+        if (e.clientX >= sr.right - 18) return;
+      }
+      var g = root.querySelector("#grip");
+      if (g) {
+        var gr = g.getBoundingClientRect();
+        if (e.clientX >= gr.left && e.clientY >= gr.top) return;
+      }
+      var r = root.getBoundingClientRect();
+      var onEdge = (e.clientX - r.left < EDGE_PX) || (r.right - e.clientX < EDGE_PX) ||
+                   (e.clientY - r.top < EDGE_PX) || (r.bottom - e.clientY < EDGE_PX);
+      if (!onEdge) return;
+      var sx = e.clientX, sy = e.clientY;
+      root.style.transform = "none";
+      root.style.left = r.left + "px";
+      root.style.top = r.top + "px";
+      var ox = r.left, oy = r.top;
+      try { root.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
+      function mv(ev) {
+        root.style.left = (ox + ev.clientX - sx) + "px";
+        root.style.top = Math.max(oy + ev.clientY - sy, 0) + "px";
+      }
+      function up() {
+        root.removeEventListener("pointermove", mv);
+        root.removeEventListener("pointerup", up);
+        root.removeEventListener("pointercancel", up);
+      }
+      root.addEventListener("pointermove", mv);
+      root.addEventListener("pointerup", up);
+      root.addEventListener("pointercancel", up);
+    });
+  }
+  winPairs.forEach(function (p) { frameMover(p[0]); });
+
   /* ---------- caption buttons: min / max / close ---------- */
   var rolled = false, maximized = false, preRect = null;
   document.getElementById("btnMin").addEventListener("click", function () {
