@@ -35,8 +35,6 @@ local __UILIB_SRC = [==[
 
 
 
-)  kind: "info"|"warn"|"error"
-]]
 
 local UI = {}
 

@@ -28,8 +28,6 @@
 
 
 
-)  kind: "info"|"warn"|"error"
-]]
 
 local UI = {}
 
