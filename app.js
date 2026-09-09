@@ -670,7 +670,6 @@
       taskGames = document.getElementById("taskGames"),
       netState = document.getElementById("netState"),
       statTotal = document.getElementById("statTotal"),
-      statOnline = document.getElementById("statOnline"),
       STATS_URL = ""; // paste your counter worker URL + "/stats", e.g. https://aether-counter.<you>.workers.dev/stats
   function openGames() {
     gamesWin.style.display = "flex";
@@ -731,7 +730,6 @@
       return;
     }
     fetch(STATS_URL, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) {
-      statOnline.textContent = fmt(d.online);
       netState.textContent = "Updating now — refreshed " + new Date().toLocaleTimeString() + ".";
     }).catch(function () {
       netState.textContent = "Online counter unreachable — check the worker URL.";
