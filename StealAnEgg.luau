@@ -547,11 +547,6 @@ function UI:CreateWindow(cfg)
             end)
         end)
 
-        page.InputChanged:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseWheel then
-                nudge(-i.Position.Z * 54)
-            end
-        end)
         return refresh
     end
 
@@ -857,7 +852,7 @@ function UI:CreateWindow(cfg)
         local page = new("ScrollingFrame", {
             BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, Active = true,
             Size = UDim2.fromScale(1, 1), CanvasSize = UDim2.new(),
-            ScrollBarThickness = 0, ScrollingEnabled = false,
+            ScrollBarThickness = 0, ScrollingEnabled = true,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             AutomaticCanvasSize = Enum.AutomaticSize.Y, Parent = PageHost,
         })
@@ -1556,7 +1551,7 @@ local function track(conn) table.insert(HUB.conns, conn); return conn end
 local function trackDrawing(d) if d then table.insert(HUB.drawings, d) end; return d end
 
 local Window = Library:CreateWindow({
-    Name = "Aether HUB | Ein Ei stehlen",
+    Name = "Aether HUB | Steal an Egg",
     LoadingAnimation = true,
     LoadingText = "Aether",
     LoadingDuration = 2.0,
@@ -1625,7 +1620,7 @@ pcall(function()
     end))
 end)
 
-local NotificationsEnabled = true
+local NotificationsEnabled = false
 local function Notify(title, content, kind, dur)
     if not NotificationsEnabled then return end
     pcall(function()
@@ -2525,13 +2520,13 @@ local MUTATION_FILTERS = {
 
 
 local autoStealEnabled          = false
-local rareEggHunter             = true
 local stealParasiteOnly         = false
 local stealBigEggsOnly          = false
 local selectedStealRarities     = {}
 local selectedStealAreas        = {}
 local selectedMutationTypes     = {}
 local stealDelay                = 1.5
+HUB.sortMode = "Highest Score"
 local glideSpeed                = 750
 local ignoredEggs               = {} 
 
@@ -2726,7 +2721,9 @@ local function GetMatchingFieldEggs(areasFilter, raritiesFilter, mutationsFilter
                     table.insert(matched, {
                         record = record,
                         rarity = rarityName,
-                        score = baseScore + mutBonus
+                        score = baseScore + mutBonus,
+                        base = baseScore,
+                        pos = record.BoundsCFrame.Position
                     })
                 end
             end
@@ -2735,9 +2732,22 @@ local function GetMatchingFieldEggs(areasFilter, raritiesFilter, mutationsFilter
 
     
     if #matched > 1 then
-        table.sort(matched, function(a, b)
-            return a.score > b.score
-        end)
+        local hrp = findHRP()
+        local hrpPos = hrp and hrp.Position or nil
+        if HUB.sortMode == "Nearest First" and hrpPos then
+            table.sort(matched, function(a, b)
+                return (a.pos - hrpPos).Magnitude < (b.pos - hrpPos).Magnitude
+            end)
+        elseif HUB.sortMode == "Highest Rarity" then
+            table.sort(matched, function(a, b)
+                if a.base == b.base then return a.score > b.score end
+                return a.base > b.base
+            end)
+        else
+            table.sort(matched, function(a, b)
+                return a.score > b.score
+            end)
+        end
     end
 
     return matched
@@ -3249,15 +3259,30 @@ local function StealSpecificEggRobust(targetItem)
     return carried or isPlayerCarryingEgg()
 end
 
+local function SetNoclip(on)
+    HUB.noclip = (on == true)
+    local char = LP.Character
+    if not char then return end
+    if HUB.noclip then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then pcall(function() part.CanCollide = false end) end
+        end
+    else
+        pcall(restoreCollisions)
+    end
+end
+
 local function StealBestEggOnce()
     pcall(HatchAllReadyEggs)
     local eggs = GetMatchingFieldEggs(selectedStealAreas, selectedStealRarities, selectedMutationTypes)
     if #eggs == 0 then
-        return false 
+        SetNoclip(false)
+        return false
     end
-
-    local target = eggs[1] 
-    return StealSpecificEggRobust(target)
+    SetNoclip(true)
+    local ok, res = pcall(StealSpecificEggRobust, eggs[1])
+    SetNoclip(false)
+    if ok then return res else return false end
 end
 
 local function HatchAllReadyEggs()
@@ -4006,13 +4031,17 @@ StealSub:AddToggle({
     Name = "Auto Steal Eggs", Default = false, Flag = "steal_auto",
     Callback = safeCallback(function(v)
         autoStealEnabled = v
-        if v then EnsureSavedReturnPosition() end
+        if v then EnsureSavedReturnPosition() else SetNoclip(false) end
         Notify("Auto Steal", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
 StealSub:AddDropdown({
     Name = "Steal Movement Method", Options = { "Tween Glide", "Fly Glide", "Safe Walk", "Anti Guard" }, Default = "Tween Glide", Flag = "steal_method",
     Callback = function(v) stealMovementMethod = v end
+})
+StealSub:AddDropdown({
+    Name = "Sort Targets By", Options = { "Highest Score", "Highest Rarity", "Nearest First" }, Default = "Highest Score", Flag = "steal_sort",
+    Callback = function(v) if type(v) == "string" and #v > 0 then HUB.sortMode = v end end
 })
 StealSub:AddToggle({
     Name = "Steal Infested / Parasite Eggs Only", Default = false, Flag = "steal_parasite_only",
@@ -4024,10 +4053,6 @@ StealSub:AddToggle({
 StealSub:AddToggle({
     Name = "Instant Prompt Pickup", Default = true, Flag = "instant_pickup",
     Callback = function(v) SetupInstantPickup(v) end
-})
-StealSub:AddToggle({
-    Name = "Rare Egg Hunter (Highest Rarity First)", Default = true, Flag = "rare_hunter",
-    Callback = function(v) rareEggHunter = v end
 })
 StealSub:AddMultiDropdown({
     Name = "Filter by Rarity (Multi-Select)", Options = RARITY_NAMES, Default = {}, Flag = "steal_rarities",
@@ -4513,7 +4538,7 @@ ConfigSub:AddButton({
 })
 
     ConfigSub:AddParagraph({
-        Title = "Aether HUB | Ein Ei stehlen",
+        Title = "Aether HUB | Steal an Egg",
         Content = "Version 4.2.0 (Production)\nEquipped with UGI / Client AC Neutralizer, BAC Telemetry Spoofer, Evidence Scrubber, Strict Rarity Filtering, clean open walkway travel without wall clipping, automatic return to trigger position, and auto egg placement in pen.\nAutomated egg stealing, hatching, homestead base upgrades, treadmill speed training, rewards collector, bat aura, ESP tracker."
     })
 end
@@ -4547,5 +4572,8 @@ HUB.Unload = function()
     _G.AetherHub = nil
 end
 
-Notify("Aether HUB", "Ein Ei stehlen script loaded successfully!", "Success", 3.5)
+task.delay(5, function()
+    NotificationsEnabled = true
+    Notify("Aether HUB", "Steal an Egg script loaded successfully!", "Success", 3.5)
+end)
 
