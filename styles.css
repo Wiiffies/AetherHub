@@ -1,0 +1,322 @@
+/* ============================================================================
+   Aether Hub Website — Win95 / MS Paint edition
+   Faithful port of UILIB.txt palette + chiselled 2px bevels to the web.
+   Palette: FACE #c6c6c6, NAVY #000080, TIP #ffffe1, TEAL #008080 ...
+   ========================================================================== */
+:root{
+  --w:#ffffff; --l:#dfdfdf; --face:#c6c6c6; --g:#808080; --k:#0a0a0a;
+  --black:#000000; --navy:#000080; --navyt:#ffffff;
+  --field:#ffffff; --text:#000000; --tip:#ffffe1; --teal:#008080;
+  --red:#c80000; --yel:#ffd800; --green:#00a800; --blue:#0000ff;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--teal);
+  font-family:Tahoma,"MS Sans Serif",Geneva,Verdana,sans-serif;
+  font-size:13px; color:var(--text);
+  overflow:hidden; user-select:none;
+}
+/* subtle CRT dither dots like a 95 desktop */
+body::after{
+  content:""; position:fixed; inset:0; pointer-events:none; opacity:.06; z-index:1;
+  background-image:radial-gradient(#000 1px, transparent 1px);
+  background-size:4px 4px;
+}
+
+/* ---------- desktop icons ---------- */
+#icons{position:fixed; top:14px; left:14px; display:flex; flex-direction:column; gap:18px; z-index:2;}
+.dicon{width:76px; text-align:center; color:#fff; cursor:pointer; padding:4px 2px;}
+.dicon .pic{width:36px; height:36px; margin:0 auto 4px; background:#fff; border:1px solid #000; position:relative;
+  box-shadow:inset -1px -1px var(--g), inset 1px 1px var(--w);}
+.dicon .pic i{position:absolute; width:12px; height:12px;}
+.dicon span{font-size:11px; line-height:1.2; text-shadow:1px 1px 0 #000;}
+.dicon:active .pic, .dicon.sel .pic{outline:1px dotted #fff; outline-offset:2px;}
+
+/* ---------- zoom-rect open animation ---------- */
+#zoomrect{position:fixed; border:2px solid #fff; z-index:9000; display:none; pointer-events:none;}
+
+/* ---------- main window ---------- */
+#win{
+  position:fixed; left:50%; top:calc(50% - 14px); transform:translate(-50%,-50%);
+  width:min(960px,94vw); height:min(620px,86vh); min-width:560px; min-height:420px;
+  background:var(--face); z-index:10; display:flex; flex-direction:column;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);
+  padding:3px;
+}
+#win.rolled .tabstrip, #win.rolled #client,
+#win.rolled #statusbar, #win.rolled #grip{display:none;}
+#win.rolled{height:auto !important; min-height:0;}
+
+/* title bar */
+#titlebar{background:var(--navy); height:20px; display:flex; align-items:center;
+  margin:0 0 3px 0; cursor:move; flex:0 0 auto; position:relative;}
+#titlebar .sysicon{width:14px; height:14px; margin:0 4px 0 3px; background:#fff;
+  border:1px solid #000; position:relative; flex:0 0 auto;}
+#titlebar .sysicon i{position:absolute; width:4px; height:4px;}
+#titlebar .cap{flex:1; color:var(--navyt); font-weight:bold; font-size:13px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:8px;}
+.capbtns{display:flex; gap:2px; padding-right:2px;}
+.capbtn{width:18px; height:16px; background:var(--face); border:0; position:relative; cursor:pointer; padding:0;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+.capbtn:active{box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--k),
+             inset -2px -2px var(--l), inset 2px 2px var(--g);}
+.capbtn.min::after{content:""; position:absolute; left:4px; bottom:4px; width:8px; height:2px; background:#000;}
+.capbtn.max::before{content:""; position:absolute; left:4px; top:3px; width:8px; height:8px;
+  background:var(--face); border:1px solid #000; border-top-width:2px;}
+.capbtn.close::before,.capbtn.close::after{content:""; position:absolute; left:3px; top:6px;
+  width:11px; height:2px; background:#000;}
+.capbtn.close::before{transform:rotate(45deg);} .capbtn.close::after{transform:rotate(-45deg);}
+
+/* tab strip — Win95 tabs */
+.tabstrip{display:flex; align-items:flex-end; padding:0 8px; height:22px; flex:0 0 auto; position:relative; z-index:3;}
+.tab{border:0; background:var(--face); font:inherit; font-size:12px; padding:2px 14px 3px; cursor:pointer;
+  margin-right:-1px; position:relative; top:2px;
+  box-shadow:inset 1px 0 var(--w), inset 0 1px var(--w), inset -1px 0 var(--g), inset 0 -1px var(--g);}
+.tab.on{padding:4px 16px 6px; top:0; z-index:4;
+  box-shadow:inset 1px 0 var(--w), inset 0 1px var(--w), inset -1px 0 var(--g);}
+
+/* client area (sunken client edge) */
+#client{flex:1; background:var(--face); margin:0 3px; position:relative; overflow:hidden;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+#pages{position:absolute; inset:3px 3px 3px 3px; overflow:hidden;}
+.page{display:none; height:100%; overflow-y:auto; padding:8px 22px 14px 8px; position:relative;}
+.page.on{display:block;}
+/* custom beveled scrollbar look for webkit */
+.page::-webkit-scrollbar{width:16px;}
+.page::-webkit-scrollbar-track{background:var(--face);
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+.page::-webkit-scrollbar-thumb{background:var(--face);
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+
+/* ---------- win95 controls ---------- */
+.sec{display:flex; align-items:center; gap:6px; margin:14px 0 6px; font-weight:bold;}
+.sec::after{content:""; flex:1; height:2px;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+.plain{margin:2px 0 8px;}
+.hintlink{color:var(--navy); text-decoration:underline; cursor:pointer;}
+
+.btn{display:inline-block; border:0; background:var(--face); font:inherit; font-size:12px;
+  padding:4px 18px; margin:4px 6px 4px 0; cursor:pointer; min-width:88px; text-align:center;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+.btn:active,.btn.down{box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--k),
+             inset -2px -2px var(--l), inset 2px 2px var(--g); padding:5px 17px 3px 19px;}
+.btn.default{outline:1px solid #000; outline-offset:-4px;}
+.btn:disabled{color:var(--g); text-shadow:1px 1px 0 var(--w); cursor:default;}
+
+.check{display:flex; align-items:center; gap:8px; margin:5px 0; cursor:pointer; width:fit-content;}
+.check .box{width:13px; height:13px; background:var(--field); flex:0 0 auto; position:relative;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g),
+             inset -2px -2px var(--l), inset 2px 2px var(--k);}
+.check .box::after{content:""; position:absolute; left:2px; top:-3px; width:9px; height:12px;
+  border:solid #000; border-width:0 2px 2px 0; transform:rotate(42deg) scale(0); transform-origin:center;}
+.check.on .box::after{transform:rotate(42deg) scale(1);}
+
+.group{margin:12px 0; padding:0 10px 10px; position:relative;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+.group>legend,.group>.gtitle{position:relative; top:-8px; background:var(--face);
+  padding:0 4px; font-weight:bold; display:inline-block;}
+
+.field{background:var(--field); padding:2px 4px;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g),
+             inset -2px -2px var(--l), inset 2px 2px var(--k);}
+input[type=text].field, .field input{border:0; outline:0; background:transparent; font:inherit; width:100%;}
+textarea.field{width:100%; font-family:Consolas,"Courier New",monospace; font-size:12px; resize:vertical;}
+
+.combo{display:flex; align-items:center; gap:8px; margin:6px 0;}
+.combo .cfield{flex:1; display:flex; align-items:center; background:var(--field); height:22px;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g),
+             inset -2px -2px var(--l), inset 2px 2px var(--k);}
+.combo .cfield span{flex:1; padding:0 4px; white-space:nowrap; overflow:hidden;}
+.combo .dropbtn{width:18px; height:18px; margin-right:1px; border:0; background:var(--face); cursor:pointer;
+  font-size:9px; line-height:1;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+.combo .dropbtn:active{box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--k),
+             inset -2px -2px var(--l), inset 2px 2px var(--g);}
+.combo-list{position:fixed; background:var(--field); border:1px solid #000; z-index:5000; display:none;}
+.combo-list div{padding:2px 8px; font-size:12px; cursor:pointer;}
+.combo-list div:hover{background:var(--navy); color:#fff;}
+
+/* trackbar */
+.track{margin:8px 0 12px;}
+.track .trow{display:flex; justify-content:space-between; align-items:center;}
+.track .val{min-width:46px; text-align:right; background:var(--field); padding:0 4px; height:18px; line-height:18px;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g),
+             inset -2px -2px var(--l), inset 2px 2px var(--k);}
+.track .rail{position:relative; height:22px; margin-top:4px; cursor:pointer;}
+.track .groove{position:absolute; left:2px; right:12px; top:9px; height:4px; background:var(--g);
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+.track .ticks{position:absolute; left:2px; right:12px; top:15px; height:3px;
+  background:repeating-linear-gradient(90deg,var(--g) 0 1px,transparent 1px 10%);}
+.track .thumb{position:absolute; top:2px; width:12px; height:20px; background:var(--face); margin-left:-6px;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+
+.radio{display:flex; gap:6px; align-items:center; margin:4px 0; cursor:pointer; width:fit-content;}
+.radio .dot{width:12px; height:12px; border-radius:50%; background:var(--field); position:relative;
+  border:1px solid var(--g);}
+.radio .dot::after{content:""; position:absolute; left:3px; top:3px; width:4px; height:4px;
+  border-radius:50%; background:#000; transform:scale(0);}
+.radio.on .dot::after{transform:scale(1);}
+
+.keyfield{display:inline-block; min-width:92px; text-align:center; background:var(--field);
+  padding:2px 8px; cursor:pointer;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g),
+             inset -2px -2px var(--l), inset 2px 2px var(--k);}
+
+.codebox{font-family:Consolas,"Courier New",monospace; font-size:12px; background:var(--field);
+  padding:8px; white-space:pre-wrap; word-break:break-all; max-height:120px; overflow:auto;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g),
+             inset -2px -2px var(--l), inset 2px 2px var(--k);}
+
+/* hero */
+.hero{display:flex; gap:14px; align-items:center; margin:6px 0 4px;}
+.hero .bigicon{width:52px; height:52px; background:#fff; border:1px solid #000; position:relative; flex:0 0 auto;}
+.hero .bigicon i{position:absolute; width:19px; height:19px;}
+.hero h1{margin:0; font-size:20px;}
+.hero p{margin:2px 0 0; color:#222;}
+.statrow{display:flex; gap:8px; margin:10px 0; flex-wrap:wrap;}
+.stat{flex:1; min-width:140px; background:var(--face); padding:6px 8px; text-align:center;
+  box-shadow:inset -1px -1px var(--g), inset 1px 1px var(--w);}
+.stat b{display:block; font-size:16px;}
+.stat span{font-size:11px;}
+
+/* status bar */
+#statusbar{display:flex; gap:4px; margin:3px 3px 1px; height:20px; flex:0 0 auto;}
+.spanel{background:var(--face); display:flex; align-items:center; padding:0 6px; font-size:11px;
+  white-space:nowrap; overflow:hidden;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+#hintpanel{flex:1;} #sizepanel{width:110px; justify-content:center;}
+
+/* resize grip */
+#grip{position:absolute; right:4px; bottom:2px; width:16px; height:16px; cursor:nwse-resize; z-index:6;}
+#grip i{position:absolute; background:var(--w); width:12px; height:2px; transform:rotate(45deg); right:0;}
+#grip i:nth-child(1){bottom:3px;} #grip i:nth-child(2){bottom:7px;} #grip i:nth-child(3){bottom:11px;}
+
+/* tooltip — the yellow kind */
+#tip{position:fixed; background:var(--tip); border:1px solid #000; font-size:11px;
+  padding:2px 6px; z-index:6000; display:none; max-width:260px; pointer-events:none;}
+
+/* message-box notifications (cascade, centred) */
+#msghost{position:fixed; inset:0; pointer-events:none; z-index:7000;}
+.msgbox{position:absolute; width:300px; background:var(--face); pointer-events:auto;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l); padding:3px;}
+.msgbox .mbar{background:var(--navy); color:#fff; font-weight:bold; font-size:12px;
+  padding:2px 6px; margin-bottom:8px;}
+.msgbox .mrow{display:flex; gap:10px; padding:2px 10px 6px;}
+.msgbox .mic{width:30px; height:30px; border-radius:50%; color:#fff; font-weight:bold;
+  display:flex; align-items:center; justify-content:center; font-size:18px; flex:0 0 auto;}
+.msgbox p{margin:2px 0 8px; font-size:12px;}
+.msgbox .mok{display:block; margin:0 auto 6px; outline:1px solid #000; outline-offset:-4px;}
+
+/* taskbar */
+#taskbar{position:fixed; left:0; right:0; bottom:0; height:30px; background:var(--face); z-index:8000;
+  display:flex; align-items:center; gap:6px; padding:2px 4px;
+  box-shadow:inset 0 1px var(--w), inset 0 2px var(--l);}
+#startbtn{font:inherit; font-weight:bold; font-size:12px; display:flex; align-items:center; gap:6px;
+  background:var(--face); border:0; padding:3px 10px; cursor:pointer;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+#startbtn:active{box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--k),
+             inset -2px -2px var(--l), inset 2px 2px var(--g);}
+#taskwin,.taskbtn{flex:0 1 240px; font-size:11px; padding:4px 8px; background:var(--face);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g),
+             inset -2px -2px var(--l), inset 2px 2px var(--k);}
+#clock{margin-left:auto; font-size:11px; padding:4px 10px;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+#startmenu{position:fixed; left:2px; bottom:32px; width:180px; background:var(--face); z-index:8001;
+  display:none; padding:3px;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+#startmenu button{display:block; width:100%; text-align:left; font:inherit; font-size:12px;
+  background:transparent; border:0; padding:6px 10px; cursor:pointer;}
+#startmenu button:hover{background:var(--navy); color:#fff;}
+
+@media (max-width:640px){
+  #win{min-width:94vw;} .hero h1{font-size:16px;} #icons{display:none;}
+}
+
+/* paint canvas + palette */
+#paint{display:block; width:100%; height:auto; background:#fff; cursor:crosshair; touch-action:none;}
+.pal{display:flex; flex-wrap:wrap; gap:4px; margin:6px 0; max-width:280px;}
+.swatch{width:22px; height:22px; border:0; padding:0; cursor:pointer;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+.swatch.sel{outline:2px solid var(--navy); outline-offset:1px;}
+.btn.armed{box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--k),
+             inset -2px -2px var(--l), inset 2px 2px var(--g); padding:5px 17px 3px 19px;}
+
+/* wallpaper picker window */
+#wallWin{position:fixed; left:50%; top:38%; transform:translate(-50%,-50%); width:300px;
+  background:var(--face); z-index:7500; padding:3px;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+#wallTitle{background:var(--navy); color:#fff; font-weight:bold; font-size:12px;
+  padding:2px 2px 2px 6px; margin-bottom:2px; display:flex; align-items:center;
+  justify-content:space-between; cursor:move;}
+#wallWin .sec{margin:8px 0 4px;}
+.walls{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:4px 0;}
+.wall{height:34px; border:0; padding:0; cursor:pointer;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+.wall.sel{outline:2px solid var(--navy); outline-offset:1px;}
+
+/* second app window (Paint) */
+.appwin{position:fixed; left:50%; top:46%; transform:translate(-50%,-50%);
+  width:min(700px,94vw); max-height:88vh; background:var(--face); z-index:20;
+  display:flex; flex-direction:column; padding:3px;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+.wintitle{background:var(--navy); height:20px; display:flex; align-items:center;
+  gap:4px; margin-bottom:3px; padding-left:4px; cursor:move; flex:0 0 auto;}
+.wintitle .cap{flex:1; color:#fff; font-weight:bold; font-size:12px;
+  white-space:nowrap; overflow:hidden;}
+.winbody{overflow-y:auto; padding:2px 4px 8px;}
+.logoimg{width:36px; height:36px; display:block; margin:0 auto 4px; image-rendering:pixelated;}
+.tinylogo{width:14px; height:14px; flex:0 0 auto;}
+#demoOut{min-height:40px;}
+.stat .bignum{display:block; font-size:20px; letter-spacing:0;}
+.stat[data-game]{cursor:pointer;}
+.stat[data-game]:hover{outline:2px solid var(--navy); outline-offset:-2px;}
+
+/* inactive windows (the one you clicked last stays navy) */
+#titlebar.inactive, .wintitle.inactive{background:var(--g);}
+body.nodither::after{display:none;}
+#smUser{font-size:11px; font-weight:bold; padding:4px 10px; color:var(--navy);}
+
+/* notepad */
+.notepad{width:100%; min-height:220px; font-family:Consolas,"Courier New",monospace;
+  font-size:12px; background:#fff; resize:vertical; padding:4px; border:0; outline:0;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g),
+             inset -2px -2px var(--l), inset 2px 2px var(--k);}
+
+/* minesweeper */
+.minebar{display:flex; justify-content:space-between; align-items:center;
+  background:var(--face); padding:4px 6px; margin-bottom:6px;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+.counter{background:#000; color:#f00; font-family:"Courier New",monospace;
+  font-weight:bold; font-size:16px; padding:1px 4px; min-width:44px; text-align:center;}
+.mineface{width:30px; height:30px; font-size:13px; font-weight:bold; cursor:pointer;
+  background:var(--face); border:0; font-family:Tahoma,sans-serif;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+.mineface:active{box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--k),
+             inset -2px -2px var(--l), inset 2px 2px var(--g);}
+#mineGrid{display:grid; grid-template-columns:repeat(9,24px); width:max-content;
+  box-shadow:inset -1px -1px var(--w), inset 1px 1px var(--g);}
+.cell{width:24px; height:24px; border:0; padding:0; cursor:pointer; font-family:Tahoma,sans-serif;
+  font-size:13px; font-weight:bold; background:var(--face); line-height:1;
+  box-shadow:inset -1px -1px var(--k), inset 1px 1px var(--w),
+             inset -2px -2px var(--g), inset 2px 2px var(--l);}
+.cell.open{background:#bdbdbd; cursor:default;
+  box-shadow:inset 1px 0 var(--g), inset 0 1px var(--g);}
+.cell.dead{background:#f00;}
+.n1{color:#0000ff;} .n2{color:#008000;} .n3{color:#ff0000;} .n4{color:#000080;}
+.n5{color:#800000;} .n6{color:#008080;} .n7{color:#000000;} .n8{color:#808080;}

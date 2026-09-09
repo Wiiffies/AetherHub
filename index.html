@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aether Hub - Paint</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="zoomrect"></div>
+<div id="tip"></div>
+<div class="combo-list" id="comboList"></div>
+<div id="msghost"></div>
+
+<!-- desktop icons = apps -->
+<div id="icons">
+  <div class="dicon" data-act="main" data-hint="Open the Aether Hub window">
+    <img class="logoimg" src="logo.svg" alt="Aether Hub">
+    <span>Aether Hub</span>
+  </div>
+  <div class="dicon" data-act="paint" data-hint="Open Paint — draw something">
+    <img class="logoimg" src="paint.svg" alt="Paint">
+    <span>Paint</span>
+  </div>
+  <div class="dicon" data-act="display" data-hint="Display settings — wallpaper, name, options">
+    <img class="logoimg" src="display.svg" alt="Display">
+    <span>Display</span>
+  </div>
+  <div class="dicon" data-act="games" data-hint="Supported games + live network stats">
+    <img class="logoimg" src="games.svg" alt="Games">
+    <span>Games</span>
+  </div>
+  <div class="dicon" data-act="memo" data-hint="Scratch notes">
+    <img class="logoimg" src="notes.svg" alt="Notepad">
+    <span>Notepad</span>
+  </div>
+  <div class="dicon" data-act="notepad" data-hint="Open Changelogs.txt">
+    <img class="logoimg" src="notepad.svg" alt="Notepad">
+    <span>Changelogs</span>
+  </div>
+  <div class="dicon" data-act="mines" data-hint="Play Minesweeper">
+    <img class="logoimg" src="mines.svg" alt="Minesweeper">
+    <span>Minesweeper</span>
+  </div>
+  <div class="dicon" data-act="get" data-hint="How to install the script">
+    <div class="pic"><i style="left:6px;top:4px;width:24px;height:4px;background:#000080"></i><i style="left:6px;top:11px;width:24px;height:2px;background:#808080"></i><i style="left:6px;top:16px;width:24px;height:2px;background:#808080"></i><i style="left:6px;top:21px;width:16px;height:2px;background:#808080"></i></div>
+    <span>Read Me.txt</span>
+  </div>
+  <div class="dicon" data-act="discord" data-hint="Copy the Discord invite" id="iconDiscord">
+    <img class="logoimg" src="discord.svg" alt="Discord">
+    <span>Discord</span>
+  </div>
+</div>
+
+<!-- ============ main window ============ -->
+<div id="win" role="dialog" aria-label="Aether Hub">
+  <div id="titlebar">
+    <div class="sysicon" aria-hidden="true"><i style="left:2px;top:2px;background:#c80000"></i><i style="left:7px;top:2px;background:#00a800"></i><i style="left:2px;top:7px;background:#0000ff"></i><i style="left:7px;top:7px;background:#ffd800"></i></div>
+    <div class="cap">Aether Hub - Paint</div>
+    <div class="capbtns">
+      <button class="capbtn min" id="btnMin" title="Minimize" data-hint="Minimize (roll up)"></button>
+      <button class="capbtn max" id="btnMax" title="Maximize" data-hint="Maximize / Restore"></button>
+      <button class="capbtn close" id="btnClose" title="Close" data-hint="Close"></button>
+    </div>
+  </div>
+
+  <div class="tabstrip" role="tablist">
+    <button class="tab on" data-tab="p-main" data-hint="Welcome page">Main</button>
+    <button class="tab" data-tab="p-scripts" data-hint="What the script does">Scripts</button>
+    <button class="tab" data-tab="p-demo" data-hint="Live replica of the Roblox UI lib controls">UI Demo</button>
+    <button class="tab" data-tab="p-faq" data-hint="Frequently asked questions">Help</button>
+    <button class="tab" data-tab="p-get" data-hint="Copy the loadstring">Get Script</button>
+  </div>
+
+  <div id="client">
+    <div id="pages">
+
+      <!-- MAIN -->
+      <section class="page on" id="p-main">
+        <div class="hero">
+          <div class="bigicon"><img src="logo.svg" alt="Aether Hub logo" style="width:100%;height:100%;display:block"></div>
+          <div>
+            <h1>Aether Hub</h1>
+            <p id="heroSub">MS Paint edition &mdash; Windows 95 styled Roblox script hub. Instant everything, just like 1995.</p>
+          </div>
+        </div>
+        <div class="statrow">
+          <div class="stat"><b>Loader</b><span>auto-detects game</span></div>
+          <div class="stat"><b>1 app live</b><span>Steal an Egg</span></div>
+          <div class="stat"><b>0s</b><span>egg pickup hold</span></div>
+          <div class="stat"><b>Free</b><span>no key linkwall</span></div>
+        </div>
+        <div class="sec">Welcome</div>
+        <p class="plain">This site is a pixel-faithful mirror of the in-game UI library (<span class="hintlink" data-hint="UILIB.txt — MS Paint edition">UILIB</span>): 2px chiselled bevels, navy title bar, tab control, group boxes, yellow tooltips and message-box notifications. One loadstring runs everything — the Loader detects which game you are in and executes the right app. Hover anything &mdash; the status bar tells you what it does.</p>
+        <button class="btn default" id="ctaCopy" data-hint="Copy the loadstring to your clipboard">Copy loadstring</button>
+        <button class="btn" data-goto="p-scripts" data-hint="See the feature list">Features</button>
+        <button class="btn" id="ctaDiscord" data-hint="Copy the Discord invite">Discord</button>
+        <div class="group">
+          <span class="gtitle">Supported game</span>
+          <div class="check on" data-hint="Farm the main supported title"><div class="box"></div><div>Steal an Egg &mdash; full auto-steal, trap neutralizer, safe teleport</div></div>
+          <div class="check" data-hint="More games ship with updates"><div class="box"></div><div>More games &mdash; coming via updates (this box does nothing, authentically)</div></div>
+        </div>
+      </section>
+
+      <!-- SCRIPTS -->
+      <section class="page" id="p-scripts">
+        <div class="sec">Loader — how it works</div>
+        <p class="plain">One loadstring for every game. The Loader checks which game you are in (<b>PlaceId</b>) and executes the right app — no per-game loadstrings, no menus. Unsupported game? It tells you instead of breaking.</p>
+        <div class="codebox" id="filetree">AetherHub  (branch: Script)
+|-- Loader.luau       — execute this, detects the game
+|-- UILib.luau        — the ui lib every app is drawn with
+`-- &lt;gameid&gt;.luau     — the per-game script (StealAnEgg.luau)</div>
+        <button class="btn" data-copy="https://raw.githubusercontent.com/Wiiffies/AetherHub/Script/Loader.luau" data-hint="Copy the Loader file URL">Loader URL</button>
+        <div class="sec">Supported apps</div>
+        <p class="plain">The catalog lives in its own app now — live network stats included.</p>
+        <button class="btn" id="openGames" data-hint="Open the Games app window">Open Games app</button>
+        <div class="sec">Steal engine</div>
+        <div class="group">
+          <span class="gtitle">Movement</span>
+          <div class="combo"><span style="flex:1">Steal movement method</span>
+            <div class="cfield" style="max-width:220px"><span id="moveVal">Tween Glide</span><button class="dropbtn" id="moveBtn" data-hint="Pick Tween Glide, Fly Glide, Safe Walk or Anti Guard">&#9660;</button></div>
+          </div>
+          <div class="track" id="glideTrack" data-min="50" data-max="750" data-val="750" data-hint="Glide speed, studs per second">
+            <div class="trow"><span>Glide speed</span><span class="val">750</span></div>
+            <div class="rail"><div class="groove"></div><div class="ticks"></div><div class="thumb"></div></div>
+          </div>
+          <div class="check on" data-flag="avoidTraps" data-hint="Walk the clean road, never through traps"><div class="box"></div><div>Avoid traps (clean-road pathing)</div></div>
+          <div class="check" data-flag="monsterChests" data-hint="Claim monster chests automatically"><div class="box"></div><div>Auto-claim monster chests</div></div>
+        </div>
+        <div class="group">
+          <span class="gtitle">Protection</span>
+          <div class="check on" data-flag="instantPickup" data-hint="Hold-to-pickup is forced to 0 seconds"><div class="box"></div><div>Instant pickup (0s CarryAreaEgg hold)</div></div>
+          <div class="check on" data-flag="robuxShield" data-hint="Accidental Robux prompts are dismissed"><div class="box"></div><div>Anti Robux-prompt shield</div></div>
+          <div class="check on" data-flag="acNeutralizer" data-hint="Client detection tables are frozen"><div class="box"></div><div>Client AC neutralizer</div></div>
+        </div>
+        <div class="sec">Config</div>
+        <p class="plain" id="cfgStatus">Config: defaults (nothing saved yet)</p>
+        <button class="btn" id="cfgSave" data-hint="Save these toggles in this browser, like Library:SaveConfig">Save Config</button>
+        <button class="btn" id="cfgLoad" data-hint="Load saved toggles, like Library:LoadConfig">Load Config</button>
+        <div class="sec">Files</div>
+        <p class="plain">The <b>Script</b> branch holds three kinds of files: <b>Loader.luau</b> (detect + dispatch — the only thing players execute), <b>UILib.luau</b> (the shared Win95 UI lib), and one <b>gameid.luau</b> per supported app. Adding a game = uploading one file + one line in the Loader table. The toggles and sliders below are the live Steal an Egg app functions (try them — Save Config keeps them).</p>
+        <button class="btn" data-goto="p-get" data-hint="Go to install steps">Install &raquo;</button>
+      </section>
+
+      <!-- UI DEMO : 1:1 with UILIB API, every control reports to Output -->
+      <section class="page" id="p-demo">
+        <div class="sec">Tools</div>
+        <p class="plain" data-hint="tab:Label — plain text">This tab mirrors the library call-for-call: Button, Toggle, Slider, Dropdown, Keybind, Radio, TextInput, Group. Touch anything — it reports to Output below. The drawing canvas moved out: it is the <b>Paint</b> app on the desktop now.</p>
+        <button class="btn" id="demoBtnTab" data-hint="tab:Button — fires a callback">Do it</button>
+        <button class="btn" id="openPaint" data-hint="Open the Paint app window">Open Paint</button>
+        <div class="check on" id="demoToggle" data-hint="tab:Toggle — checkbox"><div class="box"></div><div>Enable thing</div></div>
+        <div class="track" id="demoSlider" data-min="1" data-max="100" data-val="50" data-hint="tab:Slider — trackbar">
+          <div class="trow"><span>Demo size</span><span class="val">50</span></div>
+          <div class="rail"><div class="groove"></div><div class="ticks"></div><div class="thumb"></div></div>
+        </div>
+        <div class="combo"><span style="flex:1">Mode</span>
+          <div class="cfield" style="max-width:220px"><span id="demoModeVal">Brush</span><button class="dropbtn" id="demoModeBtn" data-hint="tab:Dropdown — combobox">&#9660;</button></div>
+        </div>
+        <p class="plain">Pick colour: <span class="keyfield" id="demoKey" data-hint="tab:Keybind — click, then press a key">K</span></p>
+        <p class="plain" style="font-weight:bold;margin-bottom:2px">Fill</p>
+        <div class="radio on" data-hint="tab:Radio — fill mode"><div class="dot"></div><div>Outline</div></div>
+        <div class="radio" data-hint="tab:Radio — fill mode"><div class="dot"></div><div>Solid</div></div>
+        <div class="radio" data-hint="tab:Radio — fill mode"><div class="dot"></div><div>None</div></div>
+        <p class="plain" style="margin-top:8px">Name</p>
+        <div class="field" style="max-width:280px" data-hint="tab:TextInput — type and press Enter"><input type="text" id="demoNameTab" value="untitled"></div>
+        <div class="group">
+          <span class="gtitle">Output</span>
+          <div class="codebox" id="demoOut" style="min-height:40px">Press something — every control reports here.</div>
+          <div style="margin-top:6px"><button class="btn" id="demoNotify" data-hint="win:Notify — message-box notification">Notify me</button></div>
+        </div>
+        <div class="group">
+          <span class="gtitle">Advanced</span>
+          <div class="check on" id="aaToggleTab" data-hint="Grouped toggle — tab:Group"><div class="box"></div><div>Anti-alias</div></div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section class="page" id="p-faq">
+        <div class="sec">Help topics</div>
+        <div class="group"><span class="gtitle">How do I run it?</span>
+          <p class="plain">Copy the loadstring from the <b>Get Script</b> tab, paste it into your executor and execute. That is the only way &mdash; there is no file to download and no key.</p>
+        </div>
+        <div class="group"><span class="gtitle">It says "no client" / nothing happens?</span>
+          <p class="plain">Attach your executor first, join <b>Steal an Egg</b>, then execute the loadstring. Re-executing is safe &mdash; the old hub unloads itself before the new one opens (zoom rectangle and all).</p>
+        </div>
+        <div class="group"><span class="gtitle">Is it keyless?</span>
+          <p class="plain">Yes. There is no key system in either build. If a download asks you to complete links, it is not us.</p>
+        </div>
+        <div class="group"><span class="gtitle">Does the site do anything shady?</span>
+          <p class="plain">No. This page is 100% static HTML/CSS/JS. The Copy button only copies text &mdash; view source and see.</p>
+        </div>
+      </section>
+
+      <!-- GET -->
+      <section class="page" id="p-get">
+        <div class="sec">Setup — 3 steps</div>
+        <p class="plain"><b>Step 1.</b> Press <b>Copy</b> below.<br><b>Step 2.</b> Join any supported game, paste into your executor and execute.<br><b>Step 3.</b> The Loader detects the game and opens its app. No download, no key, no per-game loadstrings.</p>
+        <p class="plain">Loadstring (paste into executor):</p>
+        <div class="codebox" id="loadstring">loadstring(game:HttpGet("https://raw.githubusercontent.com/Wiiffies/AetherHub/Script/Loader.luau"))()</div>
+        <button class="btn default" id="ctaCopy2" data-hint="Copy the loadstring">Copy</button>
+      </section>
+
+    </div>
+  </div>
+
+  <div id="statusbar">
+    <div class="spanel" id="hintpanel">For Help, press F1</div>
+    <div class="spanel" id="sizepanel">960 x 620</div>
+  </div>
+  <div id="grip" data-hint="Drag to resize"><i></i><i></i><i></i></div>
+</div>
+
+<!-- wallpaper picker -->
+<div id="wallWin" style="display:none" role="dialog" aria-label="Display Properties">
+  <div id="wallTitle"><span>Display Properties</span><button class="capbtn close" id="wallClose" title="Close"></button></div>
+  <div class="tabstrip" style="padding:0 4px">
+    <button class="tab on" id="wallTabBg" data-hint="Wallpaper settings">Background</button>
+    <button class="tab" id="wallTabSet" data-hint="Name and desktop settings">Settings</button>
+  </div>
+  <div id="wallPaneBg">
+  <div class="sec">Wallpaper</div>
+  <div class="walls" id="walls"></div>
+  <p class="plain">Custom colour (hex):</p>
+  <div style="display:flex;gap:6px;align-items:center">
+    <div class="field" style="flex:1"><input type="text" id="wallCustom" value="#008080" maxlength="7"></div>
+    <button class="btn" id="wallApply" style="min-width:60px;margin:0" data-hint="Preview this colour">Set</button>
+  </div>
+  <div style="margin-top:8px">
+    <button class="btn default" id="wallSave" data-hint="Save wallpaper in this browser">Save</button>
+    <button class="btn" id="wallDefault" data-hint="Back to Win95 teal">Default</button>
+  </div>
+  <div class="sec">Picture</div>
+  <p class="plain">Image URL, or upload one from your PC:</p>
+  <div style="display:flex;gap:6px;align-items:center">
+    <div class="field" style="flex:1"><input type="text" id="wallUrl" placeholder="https://…/image.png"></div>
+    <button class="btn" id="wallUrlApply" style="min-width:60px;margin:0" data-hint="Use this image as wallpaper">Set</button>
+  </div>
+  <div style="margin-top:6px">
+    <button class="btn" id="wallUploadBtn" data-hint="Upload an image from your PC">Upload…</button>
+    <button class="btn" id="wallImgClear" data-hint="Remove the picture, keep the colour">Clear image</button>
+    <input type="file" id="wallUpload" accept="image/*" style="display:none">
+  </div>
+  </div>
+  <div id="wallPaneSet" style="display:none">
+    <div class="sec">User</div>
+    <p class="plain">Registered to:</p>
+    <div class="field" data-hint="Your name — shown on the desktop"><input type="text" id="setName" maxlength="24" placeholder="guest"></div>
+    <div class="sec">Settings</div>
+    <div class="check on" id="setTips" data-hint="Yellow hover tooltips"><div class="box"></div><div>Yellow tooltips</div></div>
+    <div class="check on" id="setNotif" data-hint="Message-box notifications"><div class="box"></div><div>Notifications</div></div>
+    <div class="check on" id="setDither" data-hint="CRT dot pattern over the desktop"><div class="box"></div><div>Desktop dither</div></div>
+    <div class="check" id="setSeconds" data-hint="Taskbar clock with seconds"><div class="box"></div><div>Clock seconds</div></div>
+    <p class="plain" style="font-size:11px">Settings save instantly in this browser.</p>
+  </div>
+</div>
+
+<!-- ============ Paint app window ============ -->
+<div id="paintWin" class="appwin" style="display:none" role="dialog" aria-label="Paint">
+  <div class="wintitle" id="paintTitle">
+    <img class="tinylogo" src="logo.svg" alt="">
+    <span class="cap">untitled - Paint</span>
+    <div class="capbtns">
+      <button class="capbtn min" id="paintMin" title="Minimize" data-hint="Minimize Paint"></button>
+      <button class="capbtn close" id="paintClose" title="Close" data-hint="Close Paint"></button>
+    </div>
+  </div>
+  <div class="winbody">
+    <div class="track" id="brushTrack" data-min="1" data-max="64" data-val="8" data-hint="Brush size">
+      <div class="trow"><span>Brush size</span><span class="val">8</span></div>
+      <div class="rail"><div class="groove"></div><div class="ticks"></div><div class="thumb"></div></div>
+    </div>
+    <div class="combo"><span style="flex:1">Mode</span>
+      <div class="cfield" style="max-width:220px"><span id="modeVal">Brush</span><button class="dropbtn" id="modeBtn" data-hint="Pick the paint tool">&#9660;</button></div>
+    </div>
+    <div class="pal" id="pal" data-hint="Colour palette"></div>
+    <div class="radio on" data-hint="Fill mode for Rect / Oval"><div class="dot"></div><div>Outline</div></div>
+    <div class="radio" data-hint="Fill mode for Rect / Oval"><div class="dot"></div><div>Solid</div></div>
+    <div class="radio" data-hint="Fill mode for Rect / Oval"><div class="dot"></div><div>None</div></div>
+    <div class="field" style="max-width:220px;margin-top:6px" data-hint="Used as the PNG filename on Save"><input type="text" id="demoName" value="untitled"></div>
+    <div style="margin-top:6px">
+      <button class="btn" id="demoBtn" data-hint="Stamp a smiley">Stamp</button>
+      <button class="btn" id="toolRect" data-hint="Arm rectangle: drag on canvas (uses Fill)">Rect</button>
+      <button class="btn" id="toolOval" data-hint="Arm oval: drag on canvas (uses Fill)">Oval</button>
+      <button class="btn" id="btnClear" data-hint="Wipe the canvas">Clear</button>
+      <button class="btn default" id="btnSave" data-hint="Download as PNG + notify">Save</button>
+    </div>
+    <div class="check on" id="aaToggle" data-hint="Canvas smoothing" style="margin-top:8px"><div class="box"></div><div>Anti-alias</div></div>
+    <div class="field" style="padding:4px;background:#fff;margin-top:6px"><canvas id="paint" width="640" height="300" data-hint="Draw here — Pencil / Brush / Airbrush, or arm Rect / Oval"></canvas></div>
+  </div>
+  <div class="spanel" id="paintStatus" style="margin:3px 3px 1px">Brush 8 — click and drag</div>
+</div>
+
+<!-- ============ Games app window ============ -->
+<div id="gamesWin" class="appwin" style="display:none" role="dialog" aria-label="Supported games">
+  <div class="wintitle" id="gamesTitle">
+    <img class="tinylogo" src="logo.svg" alt="">
+    <span class="cap">Supported games - Aether Hub</span>
+    <div class="capbtns">
+      <button class="capbtn min" id="gamesMin" title="Minimize" data-hint="Minimize Games"></button>
+      <button class="capbtn close" id="gamesClose" title="Close" data-hint="Close Games"></button>
+    </div>
+  </div>
+  <div class="winbody">
+    <div class="sec">Live network</div>
+    <p class="plain" id="netState">Updating now…</p>
+    <div class="statrow">
+      <div class="stat"><b class="bignum" id="statTotal">···</b><span>Total executions</span></div>
+      <div class="stat"><b class="bignum" id="statGames">1</b><span>Supported games</span></div>
+      <div class="stat"><b class="bignum" id="statOnline">···</b><span>Players online</span></div>
+    </div>
+    <div class="sec">Catalog</div>
+    <div class="statrow">
+      <div class="stat" data-game="steal" data-hint="Open this game on Roblox"><b style="color:#008000">● LIVE</b><span><b>Steal an Egg</b><br>auto-steal, trap neutralizer, safe teleport</span></div>
+      <div class="stat"><b style="color:#808080">○ SOON</b><span><b>Slot 2</b><br>next app drops here</span></div>
+      <div class="stat"><b style="color:#808080">○ SOON</b><span><b>Slot 3</b><br>next app drops here</span></div>
+    </div>
+    <p class="plain">One loadstring runs them all — the Loader detects the game and opens its app. <span class="hintlink" data-goto="p-get" data-hint="Go to install steps">Get it here.</span></p>
+  </div>
+</div>
+
+<!-- ============ Changelogs viewer (read-only, like a README) ============ -->
+<div id="noteWin" class="appwin" style="display:none; width:min(560px,94vw)" role="dialog" aria-label="Changelogs">
+  <div class="wintitle" id="noteTitle">
+    <img class="tinylogo" src="notepad.svg" alt="">
+    <span class="cap">Changelogs.txt</span>
+    <div class="capbtns">
+      <button class="capbtn min" id="noteMin" title="Minimize" data-hint="Minimize Changelogs"></button>
+      <button class="capbtn close" id="noteClose" title="Close" data-hint="Close Changelogs"></button>
+    </div>
+  </div>
+  <div class="winbody">
+    <textarea id="noteArea" class="notepad" spellcheck="false" readonly data-hint="Read-only — like a README"></textarea>
+  </div>
+  <div class="spanel" id="noteStatus" style="margin:3px 3px 1px">Ln 1, Ch 0</div>
+</div>
+
+<!-- ============ Notepad scratch app ============ -->
+<div id="memoWin" class="appwin" style="display:none; width:min(560px,94vw)" role="dialog" aria-label="Notepad">
+  <div class="wintitle" id="memoTitle">
+    <img class="tinylogo" src="notes.svg" alt="">
+    <span class="cap">Untitled - Notepad</span>
+    <div class="capbtns">
+      <button class="capbtn min" id="memoMin" title="Minimize" data-hint="Minimize Notepad"></button>
+      <button class="capbtn close" id="memoClose" title="Close" data-hint="Close Notepad"></button>
+    </div>
+  </div>
+  <div class="winbody">
+    <textarea id="memoArea" class="notepad" spellcheck="false" data-hint="Type here — draft autosaves"></textarea>
+    <div style="margin-top:6px">
+      <button class="btn default" id="memoSave" data-hint="Download Notes.txt to Downloads">Save</button>
+      <button class="btn" id="memoClear" data-hint="Wipe the text">Clear</button>
+    </div>
+  </div>
+  <div class="spanel" id="memoStatus" style="margin:3px 3px 1px">Ln 1, Ch 0</div>
+</div>
+
+<!-- ============ Minesweeper app window ============ -->
+<div id="mineWin" class="appwin" style="display:none; width:300px" role="dialog" aria-label="Minesweeper">
+  <div class="wintitle" id="mineTitle">
+    <img class="tinylogo" src="mines.svg" alt="">
+    <span class="cap">Minesweeper</span>
+    <div class="capbtns">
+      <button class="capbtn min" id="mineMin" title="Minimize" data-hint="Minimize Minesweeper"></button>
+      <button class="capbtn close" id="mineClose" title="Close" data-hint="Close Minesweeper"></button>
+    </div>
+  </div>
+  <div class="winbody">
+    <div class="minebar">
+      <div class="counter" id="mineCount">010</div>
+      <button class="mineface" id="mineFace" data-hint="New game">:-)</button>
+      <div class="counter" id="mineTime">000</div>
+    </div>
+    <div id="mineGrid" data-hint="Left-click: dig · Right-click: flag"></div>
+    <div style="margin-top:6px">
+      <button class="btn" id="mineFlagMode" data-hint="Touch mode: tap flags instead of digging">Flag: OFF</button>
+    </div>
+    <p class="plain" id="mineBest" style="font-size:11px">Best: —</p>
+    <p class="plain" style="font-size:11px">How to play: numbers = mines touching that square. Flag all 10 mines to win. First click is always safe. Face = new game.</p>
+  </div>
+</div>
+
+<!-- taskbar -->
+<div id="startmenu">
+  <div id="smUser">Aether — guest</div>
+  <button data-goto="p-main">Aether Hub</button>
+  <button data-goto="p-get">Get Script…</button>
+  <button id="smWall">Wallpaper…</button>
+  <button id="smNotify">Notify test…</button>
+</div>
+<div id="taskbar">
+  <button id="startbtn" data-hint="The Start button. It starts."><img class="tinylogo" src="logo.svg" alt=""> Start</button>
+  <div id="taskwin">Aether Hub - Paint</div>
+  <div id="taskPaint" class="taskbtn" style="display:none">Paint</div>
+  <div id="taskGames" class="taskbtn" style="display:none">Games</div>
+  <div id="taskNote" class="taskbtn" style="display:none">Changelogs</div>
+  <div id="taskMine" class="taskbtn" style="display:none">Minesweeper</div>
+  <div id="taskMemo" class="taskbtn" style="display:none">Notepad</div>
+  <div id="clock">12:00 PM</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
