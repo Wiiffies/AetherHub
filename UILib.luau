@@ -1,39 +1,39 @@
---[[
-    Aether UI  —  MS Paint edition
 
-    A Windows 95 / MS Paint styled Roblox UI library. One look, done properly:
-      * 2px chiselled bevels on every surface (raised / pressed / sunken / etched)
-      * Navy title bar with a drawn program icon and real _ [] X glyph buttons
-      * Win95 tab control, group boxes, checkboxes, trackbars, comboboxes, spin fields
-      * Custom beveled scrollbar with arrow buttons
-      * Status bar with sunken hint panels, resize grip, maximise / restore
-      * "Zoom rectangle" open + close, instant everything else (authentic — Win95 didn't animate)
-      * Tooltips (the yellow kind)
-      * Message-box style notifications that cascade
 
-    The screen behind the window is NOT darkened.
 
-    API (backwards compatible with earlier Aether):
-      local UI  = loadstring(...)()
-      local win = UI:CreateWindow({ Title = "untitled - Paint", Size = UDim2.fromOffset(560, 420) })
-      local tab = win:AddTab("Options")            -- ("name"[, iconUnused])
-        tab:Section("Tools")
-        tab:Label("plain text", "status-bar hint")
-        tab:Button("Do it", fn, "hint")
-        tab:Toggle("Enable thing", false, fn, "hint")        -- checkbox
-        tab:Slider("Brush size", 1, 64, 8, fn, "hint")       -- trackbar
-        tab:Dropdown("Mode", {"Pencil","Brush","Airbrush"}, "Brush", fn, "hint")
-        tab:Keybind("Pick colour", Enum.KeyCode.K, fn, "hint")
-        tab:Radio("Fill", {"None","Outline","Solid"}, "Outline", fn)
-        tab:TextInput("Name", "untitled", fn)
-        local g = tab:Group("Advanced")                       -- group box; same methods
-          g:Toggle("Anti-alias", true)
-      win:Notify("Paint", "Saved to Desktop.", 4)             -- Notify(title,text[,dur[,kind]])  kind: "info"|"warn"|"error"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+)  kind: "info"|"warn"|"error"
 ]]
 
 local UI = {}
 
--- harmless stubs so scripts written against the themed build don't hard-error
+
 function UI:SetTheme() end
 UI.Themes = setmetatable({}, { __index = function() return {} end })
 
@@ -41,37 +41,37 @@ local UserInputService = game:GetService("UserInputService")
 local TextService      = game:GetService("TextService")
 local CoreGui          = game:GetService("CoreGui")
 
---============================================================================
--- Palette (Windows 95 default scheme)
---============================================================================
+
+
+
 
 local rgb = Color3.fromRGB
 local COL = {
-    W     = rgb(255, 255, 255),   -- button highlight
-    L     = rgb(223, 223, 223),   -- button light
-    FACE  = rgb(198, 198, 198),   -- 3D face
-    G     = rgb(128, 128, 128),   -- button shadow
-    K     = rgb( 10,  10,  10),   -- button dark shadow
+    W     = rgb(255, 255, 255),   
+    L     = rgb(223, 223, 223),   
+    FACE  = rgb(198, 198, 198),   
+    G     = rgb(128, 128, 128),   
+    K     = rgb( 10,  10,  10),   
     BLACK = rgb(  0,   0,   0),
-    NAVY  = rgb(  0,   0, 128),   -- active title / selection
-    NAVYT = rgb(255, 255, 255),   -- active title text
-    GRAYT = rgb(128, 128, 128),   -- inactive title / disabled text
-    FIELD = rgb(255, 255, 255),   -- input background
+    NAVY  = rgb(  0,   0, 128),   
+    NAVYT = rgb(255, 255, 255),   
+    GRAYT = rgb(128, 128, 128),   
+    FIELD = rgb(255, 255, 255),   
     TEXT  = rgb(  0,   0,   0),
-    TIP   = rgb(255, 255, 225),   -- tooltip background
-    TEAL  = rgb(  0, 128, 128),   -- the desktop
+    TIP   = rgb(255, 255, 225),   
+    TEAL  = rgb(  0, 128, 128),   
     RED   = rgb(200,   0,   0),
     YEL   = rgb(255, 216,   0),
 }
 
 local FONT      = Enum.Font.SourceSans
 local FONT_B    = Enum.Font.SourceSansBold
-local SIZE      = 15          -- body text
-local SIZE_T    = 15          -- title text
+local SIZE      = 15          
+local SIZE_T    = 15          
 
---============================================================================
--- Low-level helpers
---============================================================================
+
+
+
 
 local function new(class, props)
     local i = Instance.new(class)
@@ -97,30 +97,30 @@ local function measure(s, size, font)
     return TextService:GetTextSize(s, size or SIZE, font or FONT, Vector2.new(4000, 40)).X
 end
 
--- 8-slot chiselled border.  Slots: t0 l0 b0 r0 t1 l1 b1 r1
+
 local BEVEL = {
     raised   = { "W","W","K","K", "L","L","G","G" },
     pressed  = { "K","K","W","W", "G","G","L","L" },
-    field    = { "G","G","W","W", "K","K","L","L" },   -- sunken (inputs, client)
-    group    = { "G","G","W","W", "W","W","G","G" },   -- etched (group boxes)
-    tabOn    = { "W","W","",  "G", "",  "", "", ""  }, -- active tab: no bottom
+    field    = { "G","G","W","W", "K","K","L","L" },   
+    group    = { "G","G","W","W", "W","W","G","G" },   
+    tabOn    = { "W","W","",  "G", "",  "", "", ""  }, 
     tabOff   = { "W","W","G", "G", "",  "", "", ""  },
     thin     = { "W","W","G", "G", "",  "", "", ""  },
     thinIn   = { "G","G","W", "W", "",  "", "", ""  },
 }
 
 local SLOT = {
-    { UDim2.new(0,0,0,0),  UDim2.new(1,0,0,1) },   -- t0
-    { UDim2.new(0,0,0,0),  UDim2.new(0,1,1,0) },   -- l0
-    { UDim2.new(0,0,1,-1), UDim2.new(1,0,0,1) },   -- b0
-    { UDim2.new(1,-1,0,0), UDim2.new(0,1,1,0) },   -- r0
-    { UDim2.new(0,1,0,1),  UDim2.new(1,-2,0,1) },  -- t1
-    { UDim2.new(0,1,0,1),  UDim2.new(0,1,1,-2) },  -- l1
-    { UDim2.new(0,1,1,-2), UDim2.new(1,-2,0,1) },  -- b1
-    { UDim2.new(1,-2,0,1), UDim2.new(0,1,1,-2) },  -- r1
+    { UDim2.new(0,0,0,0),  UDim2.new(1,0,0,1) },   
+    { UDim2.new(0,0,0,0),  UDim2.new(0,1,1,0) },   
+    { UDim2.new(0,0,1,-1), UDim2.new(1,0,0,1) },   
+    { UDim2.new(1,-1,0,0), UDim2.new(0,1,1,0) },   
+    { UDim2.new(0,1,0,1),  UDim2.new(1,-2,0,1) },  
+    { UDim2.new(0,1,0,1),  UDim2.new(0,1,1,-2) },  
+    { UDim2.new(0,1,1,-2), UDim2.new(1,-2,0,1) },  
+    { UDim2.new(1,-2,0,1), UDim2.new(0,1,1,-2) },  
 }
 
--- attaches a bevel to `frame`; returns setter(styleName)
+
 local function bevel(frame, style)
     local edges = {}
     for i = 1, 8 do
@@ -146,14 +146,14 @@ local function bevel(frame, style)
     return apply
 end
 
--- solid 1px border (dropdown lists, tooltips)
+
 local function outline(frame, color)
     return new("UIStroke", { Color = color or COL.BLACK, Thickness = 1, Parent = frame })
 end
 
---============================================================================
--- Screen / tooltip singletons
---============================================================================
+
+
+
 
 local screen = new("ScreenGui", {
     Name = "AetherPaint",
@@ -182,7 +182,7 @@ local function attachTip(host, text, onHint)
         task.delay(0.7, function()
             if token ~= mine then return end
             local m = UserInputService:GetMouseLocation()
-            -- GetMouseLocation omits the 36px top-inset; screen uses IgnoreGuiInset
+            
             Tip.Position = UDim2.fromOffset(m.X + 12, m.Y + 36 + 18)
             TipText.Text = text
             Tip.Visible = true
@@ -200,11 +200,11 @@ local function attachTip(host, text, onHint)
     end)
 end
 
---============================================================================
--- Drawn glyphs
---============================================================================
 
-local function drawPaintIcon(parent)   -- 14x14 program icon
+
+
+
+local function drawPaintIcon(parent)   
     local box = new("Frame", { BackgroundColor3 = COL.W, BorderSizePixel = 0, Size = UDim2.fromScale(1,1), Parent = parent })
     outline(box)
     local swatch = { COL.RED, rgb(0,168,0), rgb(0,0,255), COL.YEL }
@@ -250,9 +250,9 @@ local function glyphX(b)
     end
 end
 
---============================================================================
--- A caption button ( _ [] X and the like )
---============================================================================
+
+
+
 
 local function captionButton(parent, xOff, draw, onClick)
     local b = new("TextButton", {
@@ -272,9 +272,9 @@ local function captionButton(parent, xOff, draw, onClick)
     return b, hold, draw
 end
 
---============================================================================
--- Window
---============================================================================
+
+
+
 
 function UI:CreateWindow(cfg)
     cfg = cfg or {}
@@ -282,7 +282,7 @@ function UI:CreateWindow(cfg)
     local winSize = cfg.Size or UDim2.fromOffset(560, 420)
     local minW, minH = cfg.MinWidth or 360, cfg.MinHeight or 240
 
-    -- optional teal desktop (off by default: screen brightness unchanged)
+    
     local desktop
     if cfg.Desktop then
         desktop = new("Frame", { BackgroundColor3 = COL.TEAL, BorderSizePixel = 0, Size = UDim2.fromScale(1,1), Parent = screen })
@@ -295,7 +295,7 @@ function UI:CreateWindow(cfg)
     })
     bevel(Root, "raised")
 
-    ------------------------------------------------------------------ title bar
+    
     local Title = new("Frame", {
         BackgroundColor3 = COL.NAVY, BorderSizePixel = 0,
         Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 0, 18), Parent = Root,
@@ -314,7 +314,7 @@ function UI:CreateWindow(cfg)
     btnMaxHold = mh
     local btnClose = captionButton(Title, -18, glyphX)
 
-    ------------------------------------------------------------------ tab strip
+    
     local TabStrip = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(6, 24), Size = UDim2.new(1, -12, 0, 20), Parent = Root })
 
     local Client = new("Frame", {
@@ -323,7 +323,7 @@ function UI:CreateWindow(cfg)
     })
     bevel(Client, "thin")
 
-    ------------------------------------------------------------------ status bar
+    
     local Status = new("Frame", { BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
         Position = UDim2.new(0, 3, 1, -21), Size = UDim2.new(1, -6, 0, 18), Parent = Root })
     local function statusPanel(x, w, wScale)
@@ -342,7 +342,7 @@ function UI:CreateWindow(cfg)
         hintText.Text = s or "For Help, press F1"
     end
 
-    ------------------------------------------------------------------ resize grip
+    
     local grip = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
         Size = UDim2.fromOffset(16, 16), Position = UDim2.new(1, -18, 1, -18), ZIndex = 5, Parent = Root })
     for i = 0, 2 do
@@ -359,7 +359,7 @@ function UI:CreateWindow(cfg)
     end
     Root:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshSize)
 
-    ------------------------------------------------------------------ drag / resize / maximise
+    
     local function beginDrag(startInput, apply)
         local origin = startInput.Position
         local conMove, conEnd
@@ -422,7 +422,7 @@ function UI:CreateWindow(cfg)
         end)
     end
 
-    ------------------------------------------------------------------ open / close zoom
+    
     local function zoomRect(fromAbs, toAbs, steps, done)
         local o = new("Frame", { BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 8000, Parent = screen })
         outline(o, COL.W).Thickness = 2
@@ -472,7 +472,7 @@ function UI:CreateWindow(cfg)
         end
     end)
 
-    ------------------------------------------------------------------ pages + scrollbar
+    
     local PageHost = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -6), ClipsDescendants = true, Parent = Client })
 
     local Window, tabs = {}, {}
@@ -550,7 +550,7 @@ function UI:CreateWindow(cfg)
         return refresh
     end
 
-    --====================================================================== element factory
+    
     local function makeElements(container, refreshScroll)
 
         local function row(h)
@@ -596,7 +596,7 @@ function UI:CreateWindow(cfg)
             bump(); return S
         end
 
-        function S:Toggle(text, default, callback, hint)   -- checkbox
+        function S:Toggle(text, default, callback, hint)   
             local state = default == true
             local r = row(18)
             local box = new("Frame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0,
@@ -650,7 +650,7 @@ function UI:CreateWindow(cfg)
             return { Set = function(_, v) set(v, true) end, Get = function() return selected end }
         end
 
-        function S:Slider(text, min, max, default, callback, hint)   -- trackbar
+        function S:Slider(text, min, max, default, callback, hint)   
             local value = math.clamp(default or min, min, max)
             local r = row(36)
             txt({ Parent = r, Text = text, Size = UDim2.new(1, -52, 0, 16) })
@@ -663,7 +663,7 @@ function UI:CreateWindow(cfg)
             local track = new("Frame", { BackgroundColor3 = COL.G, BorderSizePixel = 0,
                 Size = UDim2.new(1, -14, 0, 4), Position = UDim2.fromOffset(2, 24), Parent = r })
             bevel(track, "field")
-            -- tick marks
+            
             for t = 0, 10 do
                 new("Frame", { BackgroundColor3 = COL.G, BorderSizePixel = 0, Size = UDim2.fromOffset(1, 3),
                     Position = UDim2.new(t / 10, 0, 0, 8), Parent = track })
@@ -708,7 +708,7 @@ function UI:CreateWindow(cfg)
             }
         end
 
-        function S:Dropdown(text, options, default, callback, hint)   -- combobox
+        function S:Dropdown(text, options, default, callback, hint)   
             local selected = default or options[1]
             local open = false
             local r = row(20)
@@ -829,13 +829,13 @@ function UI:CreateWindow(cfg)
             return makeElements(inner, refreshScroll)
         end
 
-        -- v1 compat
+        
         S.Paragraph = function(_, t, b) S:Section(t); if b then S:Label(b) end; return S end
 
         return S
     end
 
-    --====================================================================== tabs
+    
     local tabAccX = 0
     local activeTab
 
@@ -888,7 +888,7 @@ function UI:CreateWindow(cfg)
         return makeElements(page, refreshScroll)
     end
 
-    --====================================================================== notifications
+    
     local notifX = 0
     function Window:Notify(nTitle, nText, duration, kind)
         duration = duration or 4
