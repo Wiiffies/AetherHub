@@ -1634,15 +1634,7 @@ HUB.keyActive = false
 local function track(conn) table.insert(HUB.conns, conn); return conn end
 local function trackDrawing(d) if d then table.insert(HUB.drawings, d) end; return d end
 
-HUB.keyDone = false
-HUB.ShowKeyDialog(function() HUB.keyDone = true end)
-while not HUB.keyDone and not HUB.dead do task.wait(0.1) end
-local Window = Library:CreateWindow({
-    Name = "Aether HUB | Steal an Egg",
-    LoadingAnimation = true,
-    LoadingText = "Aether",
-    LoadingDuration = 2.0,
-})
+
 
 
 
@@ -1881,6 +1873,15 @@ HUB.ShowKeyDialog = function(onDone)
         end)
     end)
 end
+HUB.keyDone = false
+HUB.ShowKeyDialog(function() HUB.keyDone = true end)
+while not HUB.keyDone and not HUB.dead do task.wait(0.1) end
+local Window = Library:CreateWindow({
+    Name = "Aether HUB | Steal an Egg",
+    LoadingAnimation = true,
+    LoadingText = "Aether",
+    LoadingDuration = 2.0,
+})
 
 local function safeCallback(fn)
     return function(...)
