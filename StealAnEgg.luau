@@ -3528,6 +3528,14 @@ end
 
 
 
+track(LP.CharacterAdded:Connect(function()
+    task.wait(1.5)
+    if HUB.dead then return end
+    table.clear(ignoredEggs)
+    pcall(restoreCollisions)
+    EnsureSavedReturnPosition()
+end))
+
 task.spawn(function()
     while not HUB.dead do
         if autoStealEnabled then
@@ -4487,6 +4495,11 @@ if HAS_CONFIG then
         Name = "Save Config", Primary = true,
         Callback = safeCallback(function()
             local ok, err = Library:SaveConfig(CONFIG_NAME)
+            pcall(function()
+                if ok and type(writefile) == "function" then
+                    writefile("AetherHub_last.txt", CONFIG_NAME)
+                end
+            end)
             Notify("Config", ok and ("Saved config '" .. CONFIG_NAME .. "'") or ("Save failed: " .. tostring(err)), ok and "Success" or "Error")
         end)
     })
@@ -4496,11 +4509,48 @@ if HAS_CONFIG then
             local ok, err = Library:LoadConfig(CONFIG_NAME)
             if ok then
                 ResyncAll()
+                pcall(function()
+                    if type(writefile) == "function" then
+                        writefile("AetherHub_last.txt", CONFIG_NAME)
+                    end
+                end)
                 Notify("Config", "Loaded config '" .. CONFIG_NAME .. "'", "Success")
             else
                 Notify("Config", "Load failed: " .. tostring(err), "Error")
             end
         end)
+    })
+    ConfigSub:AddDropdown({
+        Name = "Auto-Load Config",
+        Options = (function()
+            local out = {}
+            pcall(function()
+                if type(listfiles) == "function" then
+                    local files = listfiles("")
+                    if type(files) == "table" then
+                        for _, f in ipairs(files) do
+                            local n = tostring(f):match("AetherHub_(.+)%.json$")
+                            if n then table.insert(out, n) end
+                        end
+                    end
+                end
+            end)
+            table.sort(out)
+            if #out == 0 then table.insert(out, CONFIG_NAME) end
+            return out
+        end)(),
+        Default = CONFIG_NAME,
+        Callback = function(v)
+            if type(v) == "string" and #v > 0 then
+                CONFIG_NAME = v
+                pcall(function()
+                    if type(writefile) == "function" then
+                        writefile("AetherHub_last.txt", v)
+                    end
+                end)
+                if HAS_CONFIG and Library:LoadConfig(v) then ResyncAll() end
+            end
+        end
     })
 end
 
@@ -4572,6 +4622,19 @@ HUB.Unload = function()
     _G.AetherHub = nil
 end
 
+task.delay(4, function()
+    local last = nil
+    pcall(function()
+        if type(readfile) == "function" and type(isfile) == "function" and isfile("AetherHub_last.txt") then
+            last = readfile("AetherHub_last.txt")
+        end
+    end)
+    if type(last) == "string" then last = last:gsub("%s+", "") end
+    if last and #last > 0 then CONFIG_NAME = last end
+    if HAS_CONFIG then
+        if Library:LoadConfig(CONFIG_NAME) then ResyncAll() end
+    end
+end)
 task.delay(5, function()
     NotificationsEnabled = true
     Notify("Aether HUB", "Steal an Egg script loaded successfully!", "Success", 3.5)
