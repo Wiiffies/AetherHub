@@ -1634,6 +1634,9 @@ HUB.keyActive = false
 local function track(conn) table.insert(HUB.conns, conn); return conn end
 local function trackDrawing(d) if d then table.insert(HUB.drawings, d) end; return d end
 
+HUB.keyDone = false
+HUB.ShowKeyDialog(function() HUB.keyDone = true end)
+while not HUB.keyDone and not HUB.dead do task.wait(0.1) end
 local Window = Library:CreateWindow({
     Name = "Aether HUB | Steal an Egg",
     LoadingAnimation = true,
@@ -1748,6 +1751,135 @@ HUB.ActivatePremium = function(key)
     if type(data) == "table" and type(data.reason) == "string" then why = "Invalid key: " .. data.reason end
     Notify("Premium", why, "Error")
     return false
+end
+HUB.ShowKeyDialog = function(onDone)
+    local done = false
+    local gui = nil
+    local function finish(ok)
+        if done then return end
+        done = true
+        pcall(function() if gui then gui:Destroy() end end)
+        if type(onDone) == "function" then task.spawn(onDone, ok) end
+    end
+    local saved = nil
+    pcall(function()
+        if type(readfile) == "function" and type(isfile) == "function" and isfile("AetherHub_key.txt") then
+            saved = readfile("AetherHub_key.txt")
+        end
+    end)
+    if type(saved) == "string" then saved = saved:gsub("%s+", "") end
+    if saved and #saved > 0 then
+        HUB.keyInput = saved
+        task.spawn(function()
+            HUB.ActivatePremium(saved)
+            finish(true)
+        end)
+        return
+    end
+    local parent = nil
+    pcall(function()
+        if type(gethui) == "function" then parent = gethui() end
+    end)
+    if not parent then
+        pcall(function() parent = game:GetService("CoreGui") end)
+    end
+    if not parent then
+        pcall(function()
+            if LP and LP:FindFirstChildOfClass("PlayerGui") then
+                parent = LP:FindFirstChildOfClass("PlayerGui")
+            end
+        end)
+    end
+    if not parent then finish(false) return end
+    local FACE = Color3.fromRGB(198, 198, 198)
+    local NAVY = Color3.fromRGB(0, 0, 128)
+    local WHITE = Color3.fromRGB(255, 255, 255)
+    local LIGHT = Color3.fromRGB(223, 223, 223)
+    local GRAY = Color3.fromRGB(128, 128, 128)
+    local DARK = Color3.fromRGB(10, 10, 10)
+    local BLACK = Color3.fromRGB(0, 0, 0)
+    local RED = Color3.fromRGB(200, 0, 0)
+    local function mk(class, props, par)
+        local i = Instance.new(class)
+        for k, v in pairs(props or {}) do
+            if k ~= "Parent" then pcall(function() i[k] = v end) end
+        end
+        i.Parent = par
+        return i
+    end
+    local function edge(par, x, y, w, h, c)
+        return mk("Frame", { BackgroundColor3 = c, BorderSizePixel = 0, Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h) }, par)
+    end
+    local function raised(f, w, h)
+        edge(f, 0, 0, w, 1, WHITE)
+        edge(f, 0, 0, 1, h, WHITE)
+        edge(f, 0, h - 1, w, 1, DARK)
+        edge(f, w - 1, 0, 1, h, DARK)
+        edge(f, 1, 1, w - 2, 1, LIGHT)
+        edge(f, 1, 1, 1, h - 2, LIGHT)
+        edge(f, 1, h - 2, w - 2, 1, GRAY)
+        edge(f, w - 2, 1, 1, h - 2, GRAY)
+    end
+    local function sunken(f, w, h)
+        edge(f, 0, 0, w, 1, GRAY)
+        edge(f, 0, 0, 1, h, GRAY)
+        edge(f, 0, h - 1, w, 1, WHITE)
+        edge(f, w - 1, 0, 1, h, WHITE)
+        edge(f, 1, 1, w - 2, 1, DARK)
+        edge(f, 1, 1, 1, h - 2, DARK)
+        edge(f, 1, h - 2, w - 2, 1, LIGHT)
+        edge(f, w - 2, 1, 1, h - 2, LIGHT)
+    end
+    gui = mk("ScreenGui", { Name = "AetherKey", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, parent)
+    local win = mk("Frame", { BackgroundColor3 = FACE, BorderSizePixel = 0, Size = UDim2.fromOffset(320, 132), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) }, gui)
+    raised(win, 320, 132)
+    local bar = mk("Frame", { BackgroundColor3 = NAVY, BorderSizePixel = 0, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 0, 18) }, win)
+    mk("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.SourceSansBold, TextSize = 14, TextColor3 = WHITE, TextXAlignment = Enum.TextXAlignment.Left, Text = "Aether Hub", Position = UDim2.fromOffset(6, 0), Size = UDim2.new(1, -30, 1, 0) }, bar)
+    local xbtn = mk("TextButton", { Text = "X", Font = Enum.Font.SourceSansBold, TextSize = 12, TextColor3 = BLACK, AutoButtonColor = false, BackgroundColor3 = FACE, BorderSizePixel = 0, Size = UDim2.fromOffset(18, 14), Position = UDim2.new(1, -20, 0, 2) }, bar)
+    raised(xbtn, 18, 14)
+    mk("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.SourceSans, TextSize = 14, TextColor3 = BLACK, TextXAlignment = Enum.TextXAlignment.Left, Text = "Enter key", Position = UDim2.fromOffset(12, 26), Size = UDim2.new(1, -24, 0, 18) }, win)
+    local field = mk("Frame", { BackgroundColor3 = WHITE, BorderSizePixel = 0, Position = UDim2.fromOffset(12, 48), Size = UDim2.fromOffset(216, 22) }, win)
+    sunken(field, 216, 22)
+    local tb = mk("TextBox", { Text = "", PlaceholderText = "AETHER-XXXX-XXXX-XXXX", Font = Enum.Font.SourceSans, TextSize = 14, TextColor3 = BLACK, PlaceholderColor3 = GRAY, BackgroundTransparency = 1, ClearTextOnFocus = false, Position = UDim2.fromOffset(4, 0), Size = UDim2.new(1, -8, 1, 0) }, field)
+    local go = mk("TextButton", { Text = ">", Font = Enum.Font.SourceSansBold, TextSize = 16, TextColor3 = BLACK, AutoButtonColor = false, BackgroundColor3 = FACE, BorderSizePixel = 0, Position = UDim2.fromOffset(234, 48), Size = UDim2.fromOffset(74, 22) }, win)
+    raised(go, 74, 22)
+    local stat = mk("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.SourceSans, TextSize = 13, TextColor3 = RED, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, Text = "", Position = UDim2.fromOffset(12, 76), Size = UDim2.new(1, -24, 0, 44) }, win)
+    local function submit()
+        local v = tostring(tb.Text or ""):gsub("%s+", "")
+        if #v == 0 then stat.Text = "Type your key first." return end
+        stat.Text = "Checking..."
+        task.spawn(function()
+            local ok = HUB.ActivatePremium(v)
+            if ok then finish(true)
+            else stat.Text = "Invalid key. Try again or press X to skip." end
+        end)
+    end
+    go.MouseButton1Click:Connect(submit)
+    tb.FocusLost:Connect(function(enter) if enter then submit() end end)
+    xbtn.MouseButton1Click:Connect(function()
+        HUB.keyActive = true
+        HUB.premium = false
+        finish(false)
+    end)
+    local UIS = game:GetService("UserInputService")
+    bar.InputBegan:Connect(function(i)
+        if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        local start = i.Position
+        local wp = win.Position
+        local cm, ce
+        cm = UIS.InputChanged:Connect(function(m)
+            if m.UserInputType == Enum.UserInputType.MouseMovement then
+                local d = m.Position - start
+                win.Position = UDim2.new(wp.X.Scale, wp.X.Offset + d.X, wp.Y.Scale, wp.Y.Offset + d.Y)
+            end
+        end)
+        ce = UIS.InputEnded:Connect(function(m)
+            if m.UserInputType == Enum.UserInputType.MouseButton1 then
+                cm:Disconnect()
+                ce:Disconnect()
+            end
+        end)
+    end)
 end
 
 local function safeCallback(fn)
@@ -4165,7 +4297,6 @@ StealSub:AddToggle({
         autoStealEnabled = v
         if v then EnsureSavedReturnPosition() else SetNoclip(false) end
         if v and not HUB.keyActive then Notify("Premium", "Join the Discord for a key: discord.gg/SK7mHYVW2P", "Info", 6) end
-        Notify("Auto Steal", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
 StealSub:AddDropdown({
@@ -4191,7 +4322,6 @@ StealSub:AddToggle({
     Name = "Steal Infested / Parasite Eggs Only", Default = false, Flag = "steal_parasite_only",
     Callback = function(v)
         stealParasiteOnly = v
-        Notify("Parasite Eggs", v and "Targeting Infested Eggs Only" or "All Filtered Eggs", v and "Success" or "Info")
     end
 })
 StealSub:AddToggle({
@@ -4232,14 +4362,12 @@ HatchSub:AddToggle({
     Name = "Auto Hatch Ready Eggs", Default = false, Flag = "hatch_auto",
     Callback = safeCallback(function(v)
         autoHatchEnabled = v
-        Notify("Auto Hatch", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
 HatchSub:AddToggle({
     Name = "Auto Place Egg (Base Pen)", Default = false, Flag = "plant_auto",
     Callback = function(v)
         autoPlantEnabled = v
-        Notify("Auto Place Egg", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end
 })
 HatchSub:AddSlider({
@@ -4270,8 +4398,6 @@ HUB.espT = EggEspSub:AddToggle({
             esp.enabled = false
             HUB.espT:Set(false)
             Notify("Premium", "Premium needed — buy it from the Discord.", "Error", 5)
-        else
-            Notify("Egg ESP", v and "Enabled" or "Disabled", v and "Success" or "Error")
         end
     end)
 })
@@ -4439,7 +4565,6 @@ BatSub:AddToggle({
     Name = "Bat / Slap Aura", Default = false, Flag = "bat_aura_enabled",
     Callback = safeCallback(function(v)
         batAuraEnabled = v
-        Notify("Bat Aura", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
 BatSub:AddSlider({
@@ -4465,7 +4590,6 @@ GuardSub:AddToggle({
     Callback = safeCallback(function(v)
         avoidTrapsEnabled = v
         if v then pcall(NeutralizeTraps) end
-        Notify("Anti-Trap", v and "Immunity Active (Enemy Hitboxes Destroyed)" or "Anti-Trap Disabled", v and "Success" or "Error")
     end)
 })
 
@@ -4473,7 +4597,6 @@ GuardSub:AddToggle({
     Name = "No Knockback / Ragdoll Immunity", Default = true, Flag = "no_knockback",
     Callback = safeCallback(function(v)
         SetNoKnockback(v)
-        Notify("Knockback", v and "Ragdoll Immunity Active" or "Knockback Enabled", v and "Success" or "Error")
     end)
 })
 
@@ -4510,7 +4633,6 @@ MoveSub:AddToggle({
             local hum = findHum()
             if hum then hum.WalkSpeed = 16 end
         end
-        Notify("WalkSpeed", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
 MoveSub:AddSlider({
@@ -4525,7 +4647,6 @@ MoveSub:AddToggle({
             local hum = findHum()
             if hum then hum.JumpPower = 50 end
         end
-        Notify("JumpPower", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
 MoveSub:AddSlider({
@@ -4540,7 +4661,6 @@ MoveSub:AddToggle({
     Name = "Smooth Fly (WASD + Space/Shift)", Default = false, Flag = "fly_enabled",
     Callback = safeCallback(function(v)
         if v then startFly() else stopFly() end
-        Notify("Fly", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
 MoveSub:AddSlider({
@@ -4807,22 +4927,7 @@ task.spawn(function()
         if Library:LoadConfig(CONFIG_NAME) then ResyncAll() end
     end
 end)
-task.delay(6, function()
-    local saved = nil
-    pcall(function()
-        if type(readfile) == "function" and type(isfile) == "function" and isfile("AetherHub_key.txt") then
-            saved = readfile("AetherHub_key.txt")
-        end
-    end)
-    if type(saved) == "string" then saved = saved:gsub("%s+", "") end
-    if saved and #saved > 0 then
-        HUB.keyInput = saved
-        HUB.ActivatePremium(saved)
-    end
-    if not HUB.keyActive then
-        Notify("Premium", "Join the Discord for a key: discord.gg/SK7mHYVW2P", "Info", 6)
-    end
-end)
+
 task.spawn(function()
     while not HUB.dead do
         task.wait(600)
