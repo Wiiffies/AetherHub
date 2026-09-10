@@ -767,6 +767,96 @@ function UI:CreateWindow(cfg)
             }
         end
 
+        function S:MultiDropdown(text, options, default, callback, hint)
+            local sel = {}
+            if type(default) == "table" then
+                for k, vv in pairs(default) do
+                    if type(k) == "string" and vv == true then sel[k] = true
+                    elseif type(vv) == "string" then sel[vv] = true end
+                end
+            end
+            local function selList()
+                local t = {}
+                for k, v in pairs(sel) do if v then table.insert(t, k) end end
+                for _, k in ipairs(t) do t[k] = true end
+                return t
+            end
+            local function caption()
+                local n = 0
+                for _ in pairs(sel) do n = n + 1 end
+                if n == 0 then return "—" end
+                return n .. " selected"
+            end
+            local open = false
+            local r = row(20)
+            txt({ Parent = r, Text = text, Size = UDim2.new(0.4, -6, 1, 0) })
+            local field = new("Frame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0,
+                Size = UDim2.new(0.6, 0, 1, 0), Position = UDim2.new(0.4, 0, 0, 0), Parent = r })
+            bevel(field, "field")
+            local label = txt({ Parent = field, Text = caption(), Position = UDim2.fromOffset(4, 0),
+                Size = UDim2.new(1, -24, 1, 0) })
+            local drop = new("TextButton", { Text = "\u{25BC}", Font = FONT, TextSize = 10, TextColor3 = COL.BLACK,
+                AutoButtonColor = false, BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
+                Size = UDim2.fromOffset(16, 16), Position = UDim2.new(1, -18, 0.5, -8), Parent = field })
+            local setD = bevel(drop, "raised")
+            local list = new("Frame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Visible = false,
+                ZIndex = 4000, Parent = screen })
+            outline(list)
+            new("UIListLayout", { Parent = list })
+            local rows = {}
+            local function paint()
+                label.Text = caption()
+                for opt, o in pairs(rows) do
+                    o.Text = (sel[opt] and "\u{2713} " or "    ") .. tostring(opt)
+                end
+            end
+            for _, opt in ipairs(options) do
+                local o = new("TextButton", { Text = "    " .. tostring(opt), Font = FONT, TextSize = SIZE,
+                    TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = COL.TEXT, AutoButtonColor = false,
+                    BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 18), ZIndex = 4001, Parent = list })
+                rows[opt] = o
+                o.MouseEnter:Connect(function() o.BackgroundColor3 = COL.NAVY; o.TextColor3 = COL.NAVYT end)
+                o.MouseLeave:Connect(function() o.BackgroundColor3 = COL.FIELD; o.TextColor3 = COL.TEXT end)
+                o.MouseButton1Click:Connect(function()
+                    if sel[opt] then sel[opt] = nil else sel[opt] = true end
+                    paint()
+                    if callback then task.spawn(callback, selList()) end
+                end)
+            end
+            local catcher = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1,1), ZIndex = 3999, Visible = false, Parent = screen })
+            local function setOpen(v)
+                open = v
+                list.Visible = v; catcher.Visible = v
+                setD(v and "pressed" or "raised")
+                if v then
+                    local ap, as = field.AbsolutePosition, field.AbsoluteSize
+                    list.Position = UDim2.fromOffset(ap.X, ap.Y + as.Y)
+                    list.Size = UDim2.fromOffset(as.X, #options * 18)
+                end
+            end
+            local hit = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1,1), Parent = field })
+            hit.MouseButton1Click:Connect(function() setOpen(not open) end)
+            drop.MouseButton1Click:Connect(function() setOpen(not open) end)
+            catcher.MouseButton1Click:Connect(function() setOpen(false) end)
+            attachTip(hit, hint, setHint)
+            paint()
+            return {
+                Set = function(_, v)
+                    sel = {}
+                    if type(v) == "table" then
+                        for k, vv in pairs(v) do
+                            if type(k) == "string" and vv == true then sel[k] = true
+                            elseif type(vv) == "string" then sel[vv] = true end
+                        end
+                    end
+                    paint()
+                    if callback then task.spawn(callback, selList()) end
+                end,
+                Get = function() return selList() end,
+            }
+        end
         function S:Keybind(text, default, callback, hint)
             local key = default or Enum.KeyCode.Unknown
             local listening = false
@@ -1282,49 +1372,36 @@ local function makeControls(C)
     function C:AddMultiDropdown(o)
         o = o or {}
         local opts = o.Options or o.Items or {}
-        local sel = {}
-        if type(o.Default) == "table" then
-            for k, v in pairs(o.Default) do
-                if type(k) == "string" and v == true then sel[k] = true
-                elseif type(v) == "string" then sel[v] = true end
-            end
-        end
-        local boxes = {}
-        local function selList()
-            local t = {}
-            for k in pairs(sel) do table.insert(t, k) end
-            for _, k in ipairs(t) do t[k] = true end
-            return t
-        end
+        local box = {}
         local H = {}
-        function H:Get() return selList() end
-        function H:Set(v)
-            sel = {}
+        local function fromV(v)
+            local t = {}
             if type(v) == "table" then
                 for k, vv in pairs(v) do
-                    if type(k) == "string" and vv == true then sel[k] = true
-                    elseif type(vv) == "string" then sel[vv] = true end
+                    if type(k) == "string" and vv == true then t[k] = true
+                    elseif type(vv) == "string" then t[vv] = true end
                 end
             end
-            for i, b in ipairs(boxes) do
-                if b.h then b.h:Set(sel[opts[i]] == true) end
-            end
-            if o.Flag then Library.Flags[o.Flag] = selList() end
-            if type(o.Callback) == "function" then task.spawn(o.Callback, selList()) end
+            return t
+        end
+        function H:Get()
+            if box.h then return box.h.Get() end
+            return fromV(o.Default)
+        end
+        function H:Set(v)
+            if box.h then box.h:Set(v)
+            else o._pending = v end
         end
         function H:SetOptions(n) opts = n or {} end
         C:_run(function(sc)
-            sc:Section(o.Name or "Multi-select")
-            for _, opt in ipairs(opts) do
-                local key = opt
-                local h = sc:Toggle("   " .. tostring(opt), sel[opt] == true, function(v)
-                    if v then sel[key] = true else sel[key] = nil end
-                    if o.Flag then Library.Flags[o.Flag] = selList() end
-                    if type(o.Callback) == "function" then task.spawn(o.Callback, selList()) end
-                end)
-                table.insert(boxes, { h = h })
-            end
-            if o.Flag then Library.Flags[o.Flag] = selList() end
+            local h = sc:MultiDropdown(o.Name or "Multi", opts, o.Default, function()
+                local cur = h.Get()
+                if o.Flag then Library.Flags[o.Flag] = cur end
+                if type(o.Callback) == "function" then task.spawn(o.Callback, cur) end
+            end)
+            box.h = h
+            if o._pending ~= nil then H:Set(o._pending) o._pending = nil end
+            if o.Flag then Library.Flags[o.Flag] = h.Get() end
             regFlag(o.Flag, H)
         end)
         return H
@@ -4173,7 +4250,7 @@ HatchSub:AddButton({
 
 
 EggEspSub:AddToggle({
-    Name = "Egg ESP Enabled", Default = false, Flag = "esp_eggs_enabled",
+    Name = "Egg ESP Enabled [PREMIUM]", Default = false, Flag = "esp_eggs_enabled",
     Callback = safeCallback(function(v)
         esp.enabled = v
         if v and not HUB.premium then Notify("Premium", "ESP needs Premium.", "Error") end
@@ -4250,7 +4327,7 @@ PetsSub:AddButton({
 
 
 SalesSub:AddToggle({
-    Name = "Auto Sell Low-Tier Pets", Default = false, Flag = "auto_sell_pets",
+    Name = "Auto Sell Low-Tier Pets [PREMIUM]", Default = false, Flag = "auto_sell_pets",
     Callback = function(v)
         autoSellPets = v
         if v and not HUB.premium then Notify("Premium", "Auto Sell needs Premium.", "Error") end
@@ -4261,7 +4338,7 @@ SalesSub:AddMultiDropdown({
     Callback = function(selectedList) selectedSellPetRarities = selectedList end
 })
 SalesSub:AddToggle({
-    Name = "Auto Sell Low-Tier Eggs", Default = false, Flag = "auto_sell_eggs",
+    Name = "Auto Sell Low-Tier Eggs [PREMIUM]", Default = false, Flag = "auto_sell_eggs",
     Callback = function(v)
         autoSellEggs = v
         if v and not HUB.premium then Notify("Premium", "Auto Sell needs Premium.", "Error") end
@@ -4272,14 +4349,14 @@ SalesSub:AddMultiDropdown({
     Callback = function(selectedList) selectedSellEggRarities = selectedList end
 })
 SalesSub:AddButton({
-    Name = "Sell Selected Pets Now", Primary = true,
+    Name = "Sell Selected Pets Now [PREMIUM]", Primary = true,
     Callback = safeCallback(function()
         SellSelectedPets()
         Notify("Sales", "Sold matching pets", "Success")
     end)
 })
 SalesSub:AddButton({
-    Name = "Sell Selected Eggs Now",
+    Name = "Sell Selected Eggs Now [PREMIUM]",
     Callback = safeCallback(function()
         SellSelectedEggs()
         Notify("Sales", "Sold matching eggs", "Success")
