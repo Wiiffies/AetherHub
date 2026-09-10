@@ -54,7 +54,7 @@
 </div>
 
 <!-- ============ main window ============ -->
-<div id="win" role="dialog" aria-label="Aether Hub">
+<div id="win" role="dialog" aria-label="Aether Hub" style="display:none">
   <div id="titlebar">
     <div class="sysicon" aria-hidden="true"><i style="left:2px;top:2px;background:#c80000"></i><i style="left:7px;top:2px;background:#00a800"></i><i style="left:2px;top:7px;background:#0000ff"></i><i style="left:7px;top:7px;background:#ffd800"></i></div>
     <div class="cap">Aether Hub - Paint</div>
@@ -82,7 +82,7 @@
           <div class="bigicon"><img src="logo.svg" alt="Aether Hub logo" style="width:100%;height:100%;display:block"></div>
           <div>
             <h1>Aether Hub</h1>
-            <p id="heroSub">MS Paint edition &mdash; Windows 95 styled Roblox script hub. Instant everything, just like 1995.</p>
+            <p id="heroSub">A Win95-styled script hub by wiiffies. One loadstring, your game gets detected, the right app opens. No key walls, no link mazes.</p>
           </div>
         </div>
         <div class="statrow">
@@ -92,7 +92,7 @@
           <div class="stat"><b>Free</b><span>no key linkwall</span></div>
         </div>
         <div class="sec">Welcome</div>
-        <p class="plain">This site is a pixel-faithful mirror of the in-game UI library (<span class="hintlink" data-hint="UILIB.txt — MS Paint edition">UILIB</span>): 2px chiselled bevels, navy title bar, tab control, group boxes, yellow tooltips and message-box notifications. One loadstring runs everything — the Loader detects which game you are in and executes the right app. Hover anything &mdash; the status bar tells you what it does.</p>
+        <p class="plain">This site copies the look of the in-game UI library (<span class="hintlink" data-hint="UILIB.txt — MS Paint edition">UILIB</span>) — chiselled bevels, navy title bar, yellow tooltips, message-box popups. Same loadstring as in game: the Loader figures out which game you're in and opens the right app. Hover stuff if you're lost — the status bar explains.</p>
         <button class="btn default" id="ctaCopy" data-hint="Copy the loadstring to your clipboard">Copy loadstring</button>
         <button class="btn" data-goto="p-scripts" data-hint="See the feature list">Features</button>
         <button class="btn" id="ctaDiscord" data-hint="Copy the Discord invite">Discord</button>
@@ -382,7 +382,9 @@
 <!-- taskbar -->
 <div id="startmenu">
   <div id="smUser">Aether — guest</div>
+  <div class="menusep">Apps</div>
   <button data-goto="p-main">Aether Hub</button>
+  <div class="menusep">System</div>
   <button data-goto="p-get">Get Script…</button>
   <button id="smWall">Wallpaper…</button>
   <button id="smNotify">Notify test…</button>

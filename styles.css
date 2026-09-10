@@ -290,6 +290,7 @@ textarea.field{width:100%; font-family:Consolas,"Courier New",monospace; font-si
 #titlebar.inactive, .wintitle.inactive{background:var(--g);}
 body.nodither::after{display:none;}
 #smUser{font-size:11px; font-weight:bold; padding:4px 10px; color:var(--navy);}
+.menusep{font-size:10px; color:var(--g); padding:3px 10px 1px;}
 
 /* notepad */
 .notepad{width:100%; min-height:220px; font-family:Consolas,"Courier New",monospace;

@@ -31,7 +31,9 @@
       else { zoom.style.display = "none"; win.style.visibility = "visible"; refreshSize(); }
     })();
   }
-  window.addEventListener("load", zoomOpen);
+  window.addEventListener("load", function () {
+    notify("Aether Hub", "Click Aether Hub to begin.", "info", 5);
+  });
 
   /* ---------- tabs ---------- */
   var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
@@ -233,6 +235,7 @@
   })();
   function refreshSize() {
     var r = win.getBoundingClientRect();
+    if (r.width < 1) return;
     sizepanel.textContent = Math.round(r.width) + " x " + Math.round(r.height);
     repaintTracks(document.querySelector(".page.on") || document);
   }
@@ -850,7 +853,7 @@
       noteArea = document.getElementById("noteArea"),
       noteStatus = document.getElementById("noteStatus"),
       NOTE_KEY = "aether_note",
-      NOTE_DEFAULT = "Changelogs.txt — Aether Hub\r\n---------------------------\r\n[2.0] Win95 Paint edition\r\n- Multi-game Loader (auto-detect)\r\n- Live network stats\r\n- Paint, Games, Display, Notepad apps\r\n\r\n[1.0] Violet private build\r\n- Steal an Egg auto-steal\r\n";
+      NOTE_DEFAULT = "Changelogs.txt — Aether Hub\r\n---------------------------\r\n[2.0] win95 paint look\r\n- loader picks the game itself\r\n- live numbers, paint/games/display/notepad apps\r\n- this notepad has a save button now\r\n\r\n[1.0] violet build\r\n- steal an egg auto-steal\r\n";
   function openNote() {
     noteWin.style.display = "flex";
     taskNote.style.display = "block";
