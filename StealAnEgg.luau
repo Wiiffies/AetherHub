@@ -1556,6 +1556,7 @@ function Library:CreateWindow(opts)
     local KINDMAP = { success = "info", ok = "info", info = "info", warn = "warn", warning = "warn", error = "error" }
     function W:Notify(o)
         o = o or {}
+        if Library._quiet then return end
         local t = tostring(o.Title or "Aether")
         local c = tostring(o.Content or o.Text or "")
         local d = tonumber(o.Duration) or 3
@@ -1596,7 +1597,9 @@ function Library:CreateWindow(opts)
         if W._dead then return end
         local ui = UI:CreateWindow({ Title = title, Size = UDim2.fromOffset(660, 480) })
         W._ui = ui
+        Library._quiet = true
         flush(W._queue, ui)
+        task.delay(3, function() Library._quiet = false end)
         if W._hidden then
             local g = findScreen(title)
             if g then pcall(function() g.Enabled = false end) end
@@ -1627,6 +1630,7 @@ _G.AetherHub = HUB
 HUB.keyUrl = "https://YOUR-KEY-WORKER"
 HUB.premium = false
 HUB.keyInput = ""
+HUB.keyActive = false
 local function track(conn) table.insert(HUB.conns, conn); return conn end
 local function trackDrawing(d) if d then table.insert(HUB.drawings, d) end; return d end
 
@@ -1720,19 +1724,26 @@ HUB.ActivatePremium = function(key)
     local ok, res = pcall(function()
         return game:HttpPost(HUB.keyUrl .. "/key/activate", HttpService:JSONEncode({ key = key, hwid = hwid }), "application/json")
     end)
-    if not ok or type(res) ~= "string" then Notify("Premium", "No connection to key server.", "Error") return false end
+    if not ok or type(res) ~= "string" then
+        HUB.keyActive = true
+        Notify("Premium", "Key server offline — free mode.", "Error")
+        return true
+    end
     local data = nil
     pcall(function() data = HttpService:JSONDecode(res) end)
     if type(data) == "table" and data.ok == true then
-        HUB.premium = true
+        HUB.premium = (data.tier == "premium")
+        HUB.keyActive = true
         HUB.key = key
         pcall(function()
             if type(writefile) == "function" then writefile("AetherHub_key.txt", key) end
         end)
-        Notify("Premium", "Activated — premium unlocked.", "Success")
+        if HUB.premium then Notify("Premium", "Activated — premium unlocked.", "Success")
+        else Notify("Premium", "Activated.", "Success") end
         return true
     end
     HUB.premium = false
+    HUB.keyActive = false
     local why = "Invalid key."
     if type(data) == "table" and type(data.reason) == "string" then why = "Invalid key: " .. data.reason end
     Notify("Premium", why, "Error")
@@ -3651,7 +3662,7 @@ end))
 
 task.spawn(function()
     while not HUB.dead do
-        if autoStealEnabled then
+        if autoStealEnabled and HUB.keyActive then
             pcall(StealBestEggOnce)
         end
         task.wait(stealDelay)
@@ -4153,6 +4164,7 @@ StealSub:AddToggle({
     Callback = safeCallback(function(v)
         autoStealEnabled = v
         if v then EnsureSavedReturnPosition() else SetNoclip(false) end
+        if v and not HUB.keyActive then Notify("Premium", "Join the Discord for a key: discord.gg/SK7mHYVW2P", "Info", 6) end
         Notify("Auto Steal", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
@@ -4209,6 +4221,7 @@ StealSub:AddSlider({
 StealSub:AddButton({
     Name = "Steal Best Available Egg Once", Primary = true,
     Callback = safeCallback(function()
+        if not HUB.keyActive then Notify("Premium", "Join the Discord for a key: discord.gg/SK7mHYVW2P", "Info", 6) return end
         local ok = StealBestEggOnce()
         Notify("Steal Egg", ok and "Stealing target egg" or "No matching egg found for selected filters", ok and "Success" or "Info")
     end)
@@ -4249,12 +4262,17 @@ HatchSub:AddButton({
 })
 
 
-EggEspSub:AddToggle({
+HUB.espT = EggEspSub:AddToggle({
     Name = "Egg ESP Enabled [PREMIUM]", Default = false, Flag = "esp_eggs_enabled",
     Callback = safeCallback(function(v)
         esp.enabled = v
-        if v and not HUB.premium then Notify("Premium", "ESP needs Premium.", "Error") end
-        Notify("Egg ESP", v and "Enabled" or "Disabled", v and "Success" or "Error")
+        if v and not HUB.premium then
+            esp.enabled = false
+            HUB.espT:Set(false)
+            Notify("Premium", "Premium needed — buy it from the Discord.", "Error", 5)
+        else
+            Notify("Egg ESP", v and "Enabled" or "Disabled", v and "Success" or "Error")
+        end
     end)
 })
 EggEspSub:AddToggle({
@@ -4326,22 +4344,30 @@ PetsSub:AddButton({
 })
 
 
-SalesSub:AddToggle({
+HUB.sellPetsT = SalesSub:AddToggle({
     Name = "Auto Sell Low-Tier Pets [PREMIUM]", Default = false, Flag = "auto_sell_pets",
     Callback = function(v)
         autoSellPets = v
-        if v and not HUB.premium then Notify("Premium", "Auto Sell needs Premium.", "Error") end
+        if v and not HUB.premium then
+            autoSellPets = false
+            HUB.sellPetsT:Set(false)
+            Notify("Premium", "Premium needed — buy it from the Discord.", "Error", 5)
+        end
     end
 })
 SalesSub:AddMultiDropdown({
     Name = "Filter Pet Sell Rarities", Options = RARITY_NAMES, Default = {}, Flag = "sell_pet_rarities",
     Callback = function(selectedList) selectedSellPetRarities = selectedList end
 })
-SalesSub:AddToggle({
+HUB.sellEggsT = SalesSub:AddToggle({
     Name = "Auto Sell Low-Tier Eggs [PREMIUM]", Default = false, Flag = "auto_sell_eggs",
     Callback = function(v)
         autoSellEggs = v
-        if v and not HUB.premium then Notify("Premium", "Auto Sell needs Premium.", "Error") end
+        if v and not HUB.premium then
+            autoSellEggs = false
+            HUB.sellEggsT:Set(false)
+            Notify("Premium", "Premium needed — buy it from the Discord.", "Error", 5)
+        end
     end
 })
 SalesSub:AddMultiDropdown({
@@ -4749,7 +4775,7 @@ HUB.Unload = function()
     for _, h in ipairs(HUB.highlights) do pcall(function() h:Destroy() end) end
     HUB.highlights = {}
 
-    stopFly()
+    pcall(stopFly)
     SetFullbright(false)
 
     local hum = findHum()
@@ -4763,7 +4789,12 @@ HUB.Unload = function()
     _G.AetherHub = nil
 end
 
-task.delay(4, function()
+task.spawn(function()
+    local t0 = os.clock()
+    while next(Library._flagObjects) == nil and os.clock() - t0 < 15 and not HUB.dead do
+        task.wait(0.25)
+    end
+    if HUB.dead then return end
     local last = nil
     pcall(function()
         if type(readfile) == "function" and type(isfile) == "function" and isfile("AetherHub_last.txt") then
@@ -4788,9 +4819,29 @@ task.delay(6, function()
         HUB.keyInput = saved
         HUB.ActivatePremium(saved)
     end
+    if not HUB.keyActive then
+        Notify("Premium", "Join the Discord for a key: discord.gg/SK7mHYVW2P", "Info", 6)
+    end
+end)
+task.spawn(function()
+    while not HUB.dead do
+        task.wait(600)
+        if HUB.keyActive and HUB.hwid then
+            pcall(function()
+                local HttpService = game:GetService("HttpService")
+                local res = game:HttpGet(HUB.keyUrl .. "/key/current?hwid=" .. tostring(HUB.hwid))
+                local data = HttpService:JSONDecode(res)
+                if type(data) == "table" and type(data.key) == "string" and #data.key > 0 then
+                    HUB.key = data.key
+                    HUB.keyInput = data.key
+                    if data.tier == "premium" then HUB.premium = true else HUB.premium = false end
+                    if type(writefile) == "function" then writefile("AetherHub_key.txt", data.key) end
+                end
+            end)
+        end
+    end
 end)
 task.delay(5, function()
     NotificationsEnabled = true
-    Notify("Aether HUB", "Steal an Egg script loaded successfully!", "Success", 3.5)
 end)
 
