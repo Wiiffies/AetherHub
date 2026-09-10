@@ -1547,6 +1547,9 @@ do
 end
 local HUB = { conns = {}, drawings = {}, highlights = {}, dead = false }
 _G.AetherHub = HUB
+HUB.keyUrl = "https://YOUR-KEY-WORKER"
+HUB.premium = false
+HUB.keyInput = ""
 local function track(conn) table.insert(HUB.conns, conn); return conn end
 local function trackDrawing(d) if d then table.insert(HUB.drawings, d) end; return d end
 
@@ -1626,6 +1629,37 @@ local function Notify(title, content, kind, dur)
     pcall(function()
         Window:Notify({ Title = title, Content = content, Type = kind or "Info", Duration = dur or 2.5 })
     end)
+end
+HUB.ActivatePremium = function(key)
+    key = tostring(key or ""):gsub("%s+", "")
+    if #key == 0 then Notify("Premium", "Enter a key first.", "Error") return false end
+    local hwid = "unknown"
+    pcall(function()
+        if type(gethwid) == "function" then hwid = tostring(gethwid()) end
+    end)
+    if hwid == "unknown" or #hwid == 0 then hwid = "uid-" .. tostring(LP.UserId) end
+    HUB.hwid = hwid
+    local HttpService = game:GetService("HttpService")
+    local ok, res = pcall(function()
+        return game:HttpPost(HUB.keyUrl .. "/key/activate", HttpService:JSONEncode({ key = key, hwid = hwid }), "application/json")
+    end)
+    if not ok or type(res) ~= "string" then Notify("Premium", "No connection to key server.", "Error") return false end
+    local data = nil
+    pcall(function() data = HttpService:JSONDecode(res) end)
+    if type(data) == "table" and data.ok == true then
+        HUB.premium = true
+        HUB.key = key
+        pcall(function()
+            if type(writefile) == "function" then writefile("AetherHub_key.txt", key) end
+        end)
+        Notify("Premium", "Activated — premium unlocked.", "Success")
+        return true
+    end
+    HUB.premium = false
+    local why = "Invalid key."
+    if type(data) == "table" and type(data.reason) == "string" then why = "Invalid key: " .. data.reason end
+    Notify("Premium", why, "Error")
+    return false
 end
 
 local function safeCallback(fn)
@@ -3448,6 +3482,7 @@ pcall(function() if instantPickupEnabled then SetupInstantPickup(true) end end)
 pcall(function() if noKnockbackEnabled then SetNoKnockback(true) end end)
 
 local function SellSelectedPets()
+    if not HUB.premium then Notify("Premium", "Auto Sell needs Premium.", "Error") return end
     local re = GetNetRemote("RE/PetSatchel/SellPet")
     if not re or not SaveModule then return end
     local save = nil
@@ -3467,6 +3502,7 @@ local function SellSelectedPets()
 end
 
 local function SellSelectedEggs()
+    if not HUB.premium then Notify("Premium", "Auto Sell needs Premium.", "Error") return end
     if not SaveModule then return end
     local save = nil
     pcall(function() save = SaveModule.Get and SaveModule.Get() end)
@@ -3567,8 +3603,8 @@ task.spawn(function()
         if autoClaimRewards then pcall(ClaimAllAvailableRewards) end
         if autoClaimMonsterChests then pcall(ClaimMonsterChests) end
         if autoFeedMonster then pcall(FeedMonsterParasite) end
-        if autoSellPets then pcall(SellSelectedPets) end
-        if autoSellEggs then pcall(SellSelectedEggs) end
+        if autoSellPets and HUB.premium then pcall(SellSelectedPets) end
+        if autoSellEggs and HUB.premium then pcall(SellSelectedEggs) end
         task.wait(2.5)
     end
 end)
@@ -3729,7 +3765,7 @@ local function createDrawingObject()
 end
 
 track(RunService.RenderStepped:Connect(function()
-    if HUB.dead or not esp.enabled then
+    if HUB.dead or not esp.enabled or not HUB.premium then
         for _, obj in pairs(trackedEspObjects) do
             if obj.name then obj.name.Visible = false end
             if obj.dist then obj.dist.Visible = false end
@@ -4051,6 +4087,17 @@ StealSub:AddDropdown({
     Name = "Sort Targets By", Options = { "Highest Score", "Highest Rarity", "Nearest First" }, Default = "Highest Score", Flag = "steal_sort",
     Callback = function(v) if type(v) == "string" and #v > 0 then HUB.sortMode = v end end
 })
+StealSub:AddDropdown({
+    Name = "Focus Rarity", Default = "All", Flag = "steal_focus",
+    Options = (function()
+        local o = { "All" }
+        for _, r in ipairs(RARITY_NAMES) do table.insert(o, r) end
+        return o
+    end)(),
+    Callback = function(v)
+        if v == "All" or type(v) ~= "string" then selectedStealRarities = {} else selectedStealRarities = { [v] = true } end
+    end
+})
 StealSub:AddToggle({
     Name = "Steal Infested / Parasite Eggs Only", Default = false, Flag = "steal_parasite_only",
     Callback = function(v)
@@ -4129,6 +4176,7 @@ EggEspSub:AddToggle({
     Name = "Egg ESP Enabled", Default = false, Flag = "esp_eggs_enabled",
     Callback = safeCallback(function(v)
         esp.enabled = v
+        if v and not HUB.premium then Notify("Premium", "ESP needs Premium.", "Error") end
         Notify("Egg ESP", v and "Enabled" or "Disabled", v and "Success" or "Error")
     end)
 })
@@ -4203,7 +4251,10 @@ PetsSub:AddButton({
 
 SalesSub:AddToggle({
     Name = "Auto Sell Low-Tier Pets", Default = false, Flag = "auto_sell_pets",
-    Callback = function(v) autoSellPets = v end
+    Callback = function(v)
+        autoSellPets = v
+        if v and not HUB.premium then Notify("Premium", "Auto Sell needs Premium.", "Error") end
+    end
 })
 SalesSub:AddMultiDropdown({
     Name = "Filter Pet Sell Rarities", Options = RARITY_NAMES, Default = {}, Flag = "sell_pet_rarities",
@@ -4211,7 +4262,10 @@ SalesSub:AddMultiDropdown({
 })
 SalesSub:AddToggle({
     Name = "Auto Sell Low-Tier Eggs", Default = false, Flag = "auto_sell_eggs",
-    Callback = function(v) autoSellEggs = v end
+    Callback = function(v)
+        autoSellEggs = v
+        if v and not HUB.premium then Notify("Premium", "Auto Sell needs Premium.", "Error") end
+    end
 })
 SalesSub:AddMultiDropdown({
     Name = "Filter Egg Sell Rarities", Options = RARITY_NAMES, Default = {}, Flag = "sell_egg_rarities",
@@ -4577,6 +4631,16 @@ ConfigSub:AddButton({
         end
     end)
 })
+ConfigSub:AddInput({
+    Name = "Premium Key", Default = "", Flag = "premium_key",
+    Callback = function(v) HUB.keyInput = tostring(v or "") end
+})
+ConfigSub:AddButton({
+    Name = "Activate Premium",
+    Callback = safeCallback(function()
+        HUB.ActivatePremium(HUB.keyInput or "")
+    end)
+})
 
 ConfigSub:AddDivider()
 
@@ -4633,6 +4697,19 @@ task.delay(4, function()
     if last and #last > 0 then CONFIG_NAME = last end
     if HAS_CONFIG then
         if Library:LoadConfig(CONFIG_NAME) then ResyncAll() end
+    end
+end)
+task.delay(6, function()
+    local saved = nil
+    pcall(function()
+        if type(readfile) == "function" and type(isfile) == "function" and isfile("AetherHub_key.txt") then
+            saved = readfile("AetherHub_key.txt")
+        end
+    end)
+    if type(saved) == "string" then saved = saved:gsub("%s+", "") end
+    if saved and #saved > 0 then
+        HUB.keyInput = saved
+        HUB.ActivatePremium(saved)
     end
 end)
 task.delay(5, function()
