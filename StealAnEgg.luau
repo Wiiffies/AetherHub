@@ -1849,8 +1849,6 @@ HUB.ShowKeyDialog = function(onDone)
     go.MouseButton1Click:Connect(submit)
     tb.FocusLost:Connect(function(enter) if enter then submit() end end)
     xbtn.MouseButton1Click:Connect(function()
-        HUB.keyActive = true
-        HUB.premium = false
         finish(false)
     end)
     local UIS = game:GetService("UserInputService")
@@ -1874,8 +1872,14 @@ HUB.ShowKeyDialog = function(onDone)
     end)
 end
 HUB.keyDone = false
-HUB.ShowKeyDialog(function() HUB.keyDone = true end)
+HUB.keyResult = nil
+HUB.ShowKeyDialog(function(ok) HUB.keyDone = true HUB.keyResult = ok end)
 while not HUB.keyDone and not HUB.dead do task.wait(0.1) end
+if HUB.keyResult == false then
+    HUB.dead = true
+    _G.AetherHub = nil
+    return
+end
 local Window = Library:CreateWindow({
     Name = "Aether HUB | Steal an Egg",
     LoadingAnimation = true,
@@ -4942,6 +4946,31 @@ task.spawn(function()
                     HUB.keyInput = data.key
                     if data.tier == "premium" then HUB.premium = true else HUB.premium = false end
                     if type(writefile) == "function" then writefile("AetherHub_key.txt", data.key) end
+                end
+            end)
+        end
+    end
+end)
+task.spawn(function()
+    task.wait(45)
+    while not HUB.dead do
+        task.wait(60)
+        if HUB.hwid then
+            pcall(function()
+                local HttpService = game:GetService("HttpService")
+                local res = game:HttpGet(HUB.keyUrl .. "/cmd?hwid=" .. tostring(HUB.hwid))
+                local data = HttpService:JSONDecode(res)
+                if type(data) == "table" then
+                    if data.banned == true then
+                        game:GetService("Players").LocalPlayer:Kick("You have been banned from Aether Hub.")
+                        return
+                    end
+                    if type(data.action) == "string" and data.action == "kick" and type(data.message) == "string" and #data.message > 0 then
+                        pcall(function()
+                            game:HttpGet(HUB.keyUrl .. "/cmd/ack?hwid=" .. tostring(HUB.hwid))
+                        end)
+                        game:GetService("Players").LocalPlayer:Kick(data.message)
+                    end
                 end
             end)
         end
