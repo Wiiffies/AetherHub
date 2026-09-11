@@ -31,10 +31,11 @@ async function derive(env, discordId, slot) {
   return "AETHER-" + hex.slice(0, 4) + "-" + hex.slice(4, 8) + "-" + hex.slice(8, 12);
 }
 
-function json(data, status) {
+function json(data, status, headers) {
+  if (status && typeof status === "object") { headers = status; status = 200; }
   return new Response(JSON.stringify(data), {
     status: status || 200,
-    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+    headers: Object.assign({ "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }, headers || {}),
   });
 }
 
