@@ -1627,7 +1627,7 @@ do
 end
 local HUB = { conns = {}, drawings = {}, highlights = {}, dead = false }
 _G.AetherHub = HUB
-HUB.keyUrl = "https://YOUR-KEY-WORKER"
+HUB.keyUrl = "https://aether-keys.wispz.workers.dev"
 HUB.premium = false
 HUB.keyInput = ""
 HUB.keyActive = false
@@ -1823,8 +1823,8 @@ HUB.ShowKeyDialog = function(onDone)
         edge(f, w - 2, 1, 1, h - 2, LIGHT)
     end
     gui = mk("ScreenGui", { Name = "AetherKey", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, parent)
-    local win = mk("Frame", { BackgroundColor3 = FACE, BorderSizePixel = 0, Size = UDim2.fromOffset(320, 132), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) }, gui)
-    raised(win, 320, 132)
+    local win = mk("Frame", { BackgroundColor3 = FACE, BorderSizePixel = 0, Size = UDim2.fromOffset(320, 158), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) }, gui)
+    raised(win, 320, 158)
     local bar = mk("Frame", { BackgroundColor3 = NAVY, BorderSizePixel = 0, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 0, 18) }, win)
     mk("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.SourceSansBold, TextSize = 14, TextColor3 = WHITE, TextXAlignment = Enum.TextXAlignment.Left, Text = "Aether Hub", Position = UDim2.fromOffset(6, 0), Size = UDim2.new(1, -30, 1, 0) }, bar)
     local xbtn = mk("TextButton", { Text = "X", Font = Enum.Font.SourceSansBold, TextSize = 12, TextColor3 = BLACK, AutoButtonColor = false, BackgroundColor3 = FACE, BorderSizePixel = 0, Size = UDim2.fromOffset(18, 14), Position = UDim2.new(1, -20, 0, 2) }, bar)
@@ -1835,7 +1835,17 @@ HUB.ShowKeyDialog = function(onDone)
     local tb = mk("TextBox", { Text = "", PlaceholderText = "AETHER-XXXX-XXXX-XXXX", Font = Enum.Font.SourceSans, TextSize = 14, TextColor3 = BLACK, PlaceholderColor3 = GRAY, BackgroundTransparency = 1, ClearTextOnFocus = false, Position = UDim2.fromOffset(4, 0), Size = UDim2.new(1, -8, 1, 0) }, field)
     local go = mk("TextButton", { Text = ">", Font = Enum.Font.SourceSansBold, TextSize = 16, TextColor3 = BLACK, AutoButtonColor = false, BackgroundColor3 = FACE, BorderSizePixel = 0, Position = UDim2.fromOffset(234, 48), Size = UDim2.fromOffset(74, 22) }, win)
     raised(go, 74, 22)
-    local stat = mk("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.SourceSans, TextSize = 13, TextColor3 = RED, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, Text = "", Position = UDim2.fromOffset(12, 76), Size = UDim2.new(1, -24, 0, 44) }, win)
+    local stat = mk("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.SourceSans, TextSize = 13, TextColor3 = RED, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, Text = "", Position = UDim2.fromOffset(12, 76), Size = UDim2.new(1, -24, 0, 20) }, win)
+    local dc = mk("TextButton", { Text = "Discord - get key", Font = Enum.Font.SourceSans, TextSize = 13, TextColor3 = BLACK, AutoButtonColor = false, BackgroundColor3 = FACE, BorderSizePixel = 0, Position = UDim2.fromOffset(12, 100), Size = UDim2.fromOffset(150, 22) }, win)
+    raised(dc, 150, 22)
+    dc.MouseButton1Click:Connect(function()
+        local ok = false
+        pcall(function()
+            if type(setclipboard) == "function" then setclipboard("https://discord.gg/SK7mHYVW2P") ok = true end
+        end)
+        if ok then stat.Text = "Invite copied. Join, verify, Get Key."
+        else stat.Text = "Join: discord.gg/SK7mHYVW2P" end
+    end)
     local function submit()
         local v = tostring(tb.Text or ""):gsub("%s+", "")
         if #v == 0 then stat.Text = "Type your key first." return end
