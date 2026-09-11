@@ -1717,7 +1717,8 @@ HUB.ActivatePremium = function(key)
     HUB.hwid = hwid
     local HttpService = game:GetService("HttpService")
     local ok, res = pcall(function()
-        return game:HttpPost(HUB.keyUrl .. "/key/activate", HttpService:JSONEncode({ key = key, hwid = hwid }), "application/json")
+        local E = game:GetService("HttpService")
+        return game:HttpGet(HUB.keyUrl .. "/key/activate?key=" .. E:UrlEncode(key) .. "&hwid=" .. E:UrlEncode(hwid))
     end)
     if not ok or type(res) ~= "string" then
         HUB.keyActive = true
@@ -1860,6 +1861,19 @@ HUB.ShowKeyDialog = function(onDone)
     tb.FocusLost:Connect(function(enter) if enter then submit() end end)
     xbtn.MouseButton1Click:Connect(function()
         finish(false)
+    end)
+    task.spawn(function()
+        local ok, res = pcall(function()
+            return game:HttpGet(HUB.keyUrl .. "/key/current")
+        end)
+        if ok and type(res) == "string" then
+            local data = nil
+            pcall(function() data = game:GetService("HttpService"):JSONDecode(res) end)
+            if type(data) == "table" and type(data.key) == "string" and #data.key > 0 and tb.Text == "" then
+                tb.Text = data.key
+                stat.Text = "Key found. Press > to continue."
+            end
+        end
     end)
     local UIS = game:GetService("UserInputService")
     bar.InputBegan:Connect(function(i)
