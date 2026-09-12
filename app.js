@@ -719,7 +719,8 @@
       taskGames = document.getElementById("taskGames"),
       netState = document.getElementById("netState"),
       statTotal = document.getElementById("statTotal"),
-      STATS_URL = ""; // paste your counter worker URL + "/stats", e.g. https://aether-counter.<you>.workers.dev/stats
+      statOnline = document.getElementById("statOnline"),
+      STATS_URL = ""; // paste Koyeb backend URL + "/stats", e.g. https://aether-xxx.koyeb.app/stats
   function openGames() {
     gamesWin.style.display = "flex";
     taskGames.style.display = "block";
@@ -775,13 +776,14 @@
       statTotal.textContent = "···";
     });
     if (!STATS_URL) {
-      netState.textContent = "Total executions live — deploy counter-worker.js for the online count.";
+      netState.textContent = "Total count is live. Online count needs the backend URL pasted above.";
       return;
     }
     fetch(STATS_URL, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) {
+      statOnline.textContent = fmt(d.online);
       netState.textContent = "Updating now — refreshed " + new Date().toLocaleTimeString() + ".";
     }).catch(function () {
-      netState.textContent = "Online counter unreachable — check the worker URL.";
+      netState.textContent = "Backend offline — deploy it on Koyeb, then paste the URL above.";
     });
   }
   setInterval(function () {
@@ -790,19 +792,22 @@
 
   /* ---------- Display Settings tab: name + desktop options ---------- */
   var SET_KEY = "aether_settings",
-      HERO_TEXT = "MS Paint edition — Windows 95 styled Roblox script hub. Instant everything, just like 1995.",
+      HERO_TEXT = "A Windows 95 style script hub for Roblox. Pick a game, copy the loadstring, run it.",
       setNameEl = document.getElementById("setName"),
+      setExecEl = document.getElementById("setExec"),
       heroSub = document.getElementById("heroSub"),
       smUser = document.getElementById("smUser");
   function applyName() {
-    var n = (setNameEl.value || "").trim();
-    heroSub.textContent = HERO_TEXT + (n ? " Registered to " + n + "." : "");
-    smUser.textContent = "Aether — " + (n || "guest");
+    var n = (setNameEl.value || "").trim(),
+        x = (setExecEl.value || "").trim();
+    heroSub.textContent = HERO_TEXT + (n ? " Registered to " + n + "." : "") + (x ? " On " + x + "." : "");
+    smUser.textContent = "Aether — " + (n || "guest") + (x ? " (" + x + ")" : "");
   }
   function currentSettings() {
     function isOn(id) { return document.getElementById(id).classList.contains("on"); }
     return {
       name: setNameEl.value || "",
+      exec: setExecEl.value || "",
       tips: isOn("setTips"), notif: isOn("setNotif"),
       dither: isOn("setDither"), seconds: isOn("setSeconds")
     };
@@ -816,6 +821,7 @@
     clockSeconds = s.seconds === true;
     document.body.classList.toggle("nodither", s.dither === false);
     setNameEl.value = s.name || "";
+    setExecEl.value = s.exec || "";
     applyName();
     [["setTips", tipsOn], ["setNotif", notifOn],
      ["setDither", s.dither !== false], ["setSeconds", clockSeconds]].forEach(function (p) {
@@ -829,6 +835,7 @@
   };
   document.getElementById("setSeconds")._onFlip = function (on) { clockSeconds = on; saveSettings(); clock(); };
   setNameEl.addEventListener("input", function () { applyName(); saveSettings(); });
+  setExecEl.addEventListener("input", function () { applyName(); saveSettings(); });
   var wallTabBg = document.getElementById("wallTabBg"),
       wallTabSet = document.getElementById("wallTabSet"),
       wallPaneBg = document.getElementById("wallPaneBg"),
