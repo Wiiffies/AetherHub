@@ -313,7 +313,7 @@ function UI:CreateWindow(cfg)
     })
 
     local maximized, preRect = false, nil
-    local btnMin  = captionButton(Title, -52, glyphMin)
+    local btnMin  = captionButton(Title, -72, glyphMin)
     local btnMaxHold
     local btnMax, mh = captionButton(Title, -36, glyphMax)
     btnMaxHold = mh
@@ -380,12 +380,37 @@ function UI:CreateWindow(cfg)
         end)
     end
 
+    local function clampWinPos(px, py)
+        local vp = screen.AbsoluteSize
+        local sz = Root.AbsoluteSize
+        local x = math.clamp(px, 0, math.max(vp.X - sz.X, 0))
+        local y = math.clamp(py, 0, math.max(vp.Y - 40, 0))
+        return UDim2.fromOffset(x, y)
+    end
+
+    local function reclaimWindow()
+        local vp = screen.AbsoluteSize
+        local p = Root.AbsolutePosition
+        local sz = Root.AbsoluteSize
+        if p.X < 0 or p.Y < 0 or p.X + 40 > vp.X or p.Y + 20 > vp.Y then
+            Root.AnchorPoint = Vector2.new(0, 0)
+            Root.Position = UDim2.fromOffset(math.max((vp.X - sz.X) / 2, 0), math.max((vp.Y - sz.Y) / 2, 0))
+        end
+    end
+
     Title.InputBegan:Connect(function(i)
         if maximized then return end
         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
             local startPos = Root.Position
             beginDrag(i, function(d)
-                Root.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+                local vp = screen.AbsoluteSize
+                local sz = Root.AbsoluteSize
+                local nx = startPos.X.Offset + d.X
+                local ny = startPos.Y.Offset + d.Y
+                if startPos.X.Scale > 0 then nx = startPos.X.Scale * vp.X + d.X end
+                if startPos.Y.Scale > 0 then ny = startPos.Y.Scale * vp.Y + d.Y end
+                Root.AnchorPoint = Vector2.new(0, 0)
+                Root.Position = clampWinPos(nx, ny)
             end)
         end
     end)
@@ -478,6 +503,27 @@ function UI:CreateWindow(cfg)
     end)
 
     
+    local showPill = new("TextButton", { Text = "SHOW", Font = FONT_B, TextSize = 12, TextColor3 = COL.NAVYT,
+        AutoButtonColor = false, BackgroundColor3 = COL.NAVY, BorderSizePixel = 0, Visible = false,
+        Size = UDim2.fromOffset(64, 24), Position = UDim2.new(0, 12, 0, 60), ZIndex = 9000, Parent = screen })
+    bevel(showPill, "raised")
+    local hideBtn = new("TextButton", { Text = "HIDE", Font = FONT, TextSize = 11, TextColor3 = COL.BLACK,
+        AutoButtonColor = false, BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
+        Size = UDim2.fromOffset(52, 18), Position = UDim2.new(1, -150, 0, 0), Parent = Status })
+    bevel(hideBtn, "raised")
+    hideBtn.MouseButton1Click:Connect(function()
+        Root.Visible = false
+        showPill.Visible = true
+    end)
+    showPill.MouseButton1Click:Connect(function()
+        Root.Visible = true
+        showPill.Visible = false
+        reclaimWindow()
+    end)
+    screen:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+        if Root.Visible then reclaimWindow() end
+    end)
+
     local PageHost = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -6), ClipsDescendants = true, Parent = Client })
 
     local Window, tabs = {}, {}
@@ -1625,9 +1671,10 @@ do
     local prev = _G.AetherHub
     if prev and type(prev.Unload) == "function" then pcall(prev.Unload) end
 end
-local HUB = { conns = {}, drawings = {}, highlights = {}, dead = false }
+local HUB = { conns = {}, drawings = {}, highlights = {}, dead = false, lastSay = 0, lastKickAt = 0 }
 _G.AetherHub = HUB
 HUB.keyUrl = "https://aether-keys.wispz.workers.dev"
+HUB.ownerHwid = ""
 HUB.premium = false
 HUB.keyInput = ""
 HUB.keyActive = false
@@ -1703,7 +1750,7 @@ local NotificationsEnabled = false
 local function Notify(title, content, kind, dur)
     if not NotificationsEnabled then return end
     pcall(function()
-        Window:Notify({ Title = title, Content = content, Type = kind or "Info", Duration = dur or 2.5 })
+        Window:Notify(tostring(title or "Aether"), tostring(content or ""), dur or 2.5, tostring(kind or "Info"):lower())
     end)
 end
 HUB.ActivatePremium = function(key)
@@ -2808,9 +2855,19 @@ local stealBigEggsOnly          = false
 local selectedStealRarities     = {}
 local selectedStealAreas        = {}
 local selectedMutationTypes     = {}
-local stealDelay                = 1.5
+local stealDelay                = 2.5
 HUB.sortMode = "Highest Score"
-local glideSpeed                = 750
+HUB.hopForEgg = false
+HUB.hopBusy = false
+HUB.hopMisses = 0
+HUB.HopServer = function()
+    if HUB.hopBusy then return end
+    HUB.hopBusy = true
+    pcall(function() TeleportService:Teleport(game.PlaceId) end)
+    task.wait(3)
+    HUB.hopBusy = false
+end
+local glideSpeed                = 160
 local ignoredEggs               = {} 
 
 
@@ -3824,7 +3881,11 @@ end))
 task.spawn(function()
     while not HUB.dead do
         if autoStealEnabled and HUB.keyActive then
-            pcall(StealBestEggOnce)
+            local s, found = pcall(StealBestEggOnce)
+            if HUB.hopForEgg and HUB.premium and s then
+                if found then HUB.hopMisses = 0 else HUB.hopMisses = (HUB.hopMisses or 0) + 1 end
+                if (HUB.hopMisses or 0) >= 4 then HUB.hopMisses = 0 HUB.HopServer() end
+            end
         end
         task.wait(stealDelay)
     end
@@ -4370,11 +4431,11 @@ StealSub:AddMultiDropdown({
     Callback = function(selectedList) selectedMutationTypes = selectedList end
 })
 StealSub:AddSlider({
-    Name = "Glide / Travel Speed", Min = 50, Max = 750, Default = 750, Suffix = " studs/s", Flag = "glide_speed",
-    Callback = function(v) glideSpeed = tonumber(v) or 750 end
+    Name = "Glide / Travel Speed", Min = 50, Max = 300, Default = 160, Suffix = " studs/s", Flag = "glide_speed",
+    Callback = function(v) glideSpeed = math.clamp(tonumber(v) or 160, 50, 300) end
 })
 StealSub:AddSlider({
-    Name = "Steal Delay Gap", Min = 0.5, Max = 10, Default = 1.5, Suffix = "s", Flag = "steal_gap",
+    Name = "Steal Delay Gap", Min = 1.0, Max = 10, Default = 2.5, Suffix = "s", Flag = "steal_gap",
     Callback = function(v) stealDelay = v end
 })
 StealSub:AddButton({
@@ -4894,6 +4955,22 @@ ConfigSub:AddButton({
     end)
 })
 
+ConfigSub:AddToggle({
+    Name = "Premium: Hop Until Filtered Egg Found", Default = false, Flag = "hop_egg",
+    Callback = function(v)
+        if v and not HUB.premium then Notify("Premium", "Premium key required for server hop.", "Info", 6) HUB.hopForEgg = false return end
+        HUB.hopForEgg = (v == true)
+        HUB.hopMisses = 0
+        if v then Notify("Server Hop", "Hop enabled. Turns off when you rejoin.", "Info", 6) end
+    end
+})
+ConfigSub:AddButton({
+    Name = "About This Hub",
+    Callback = safeCallback(function()
+        Notify("Aether HUB", "Steal an Egg build. Eggs: Auto Steal plus filters. Premium: hop until match. UI: HIDE sits in the status bar, SHOW pill brings it back.", "Info", 8)
+    end)
+})
+
 ConfigSub:AddDivider()
 
 ConfigSub:AddButton({
@@ -4969,7 +5046,6 @@ task.spawn(function()
                     HUB.key = data.key
                     HUB.keyInput = data.key
                     if data.tier == "premium" then HUB.premium = true else HUB.premium = false end
-                    if type(writefile) == "function" then writefile("AetherHub_key.txt", data.key) end
                 end
             end)
         end
@@ -4981,20 +5057,40 @@ task.spawn(function()
         task.wait(60)
         if HUB.hwid then
             pcall(function()
+                local Players = game:GetService("Players")
                 local HttpService = game:GetService("HttpService")
-                local res = game:HttpGet(HUB.keyUrl .. "/cmd?hwid=" .. tostring(HUB.hwid))
+                local hw = HttpService:UrlEncode(tostring(HUB.hwid))
+                local res = game:HttpGet(HUB.keyUrl .. "/cmd?hwid=" .. hw)
                 local data = HttpService:JSONDecode(res)
-                if type(data) == "table" then
-                    if data.banned == true then
-                        game:GetService("Players").LocalPlayer:Kick("You have been banned from Aether Hub.")
+                if type(data) ~= "table" then return end
+
+                if data.banned == true then
+                    Players.LocalPlayer:Kick("You have been banned from Aether Hub.")
+                    return
+                end
+
+                local protected = type(HUB.ownerHwid) == "string"
+                    and #HUB.ownerHwid > 0
+                    and HUB.ownerHwid == HUB.hwid
+
+                if data.action == "kick" and type(data.message) == "string" and #data.message > 0 then
+                    if protected then
+                        if HUB.lastKickAt ~= (data.at or 0) then
+                            HUB.lastKickAt = data.at or 0
+                            pcall(function() game:HttpGet(HUB.keyUrl .. "/cmd/ack?hwid=" .. hw) end)
+                            Notify("Aether", "Kick intercepted (owner protected): " .. data.message, "Warn", 6)
+                        end
+                    else
+                        pcall(function() game:HttpGet(HUB.keyUrl .. "/cmd/ack?hwid=" .. hw) end)
+                        task.wait(0.75)
+                        Players.LocalPlayer:Kick(data.message)
                         return
                     end
-                    if type(data.action) == "string" and data.action == "kick" and type(data.message) == "string" and #data.message > 0 then
-                        pcall(function()
-                            game:HttpGet(HUB.keyUrl .. "/cmd/ack?hwid=" .. tostring(HUB.hwid))
-                        end)
-                        game:GetService("Players").LocalPlayer:Kick(data.message)
-                    end
+                end
+
+                if type(data.msg) == "string" and #data.msg > 0 and HUB.lastSay ~= data.msgAt then
+                    HUB.lastSay = data.msgAt
+                    Notify("Aether", data.msg, "Info", 6)
                 end
             end)
         end

@@ -306,7 +306,7 @@ function UI:CreateWindow(cfg)
     })
 
     local maximized, preRect = false, nil
-    local btnMin  = captionButton(Title, -52, glyphMin)
+    local btnMin  = captionButton(Title, -72, glyphMin)
     local btnMaxHold
     local btnMax, mh = captionButton(Title, -36, glyphMax)
     btnMaxHold = mh
@@ -373,12 +373,37 @@ function UI:CreateWindow(cfg)
         end)
     end
 
+    local function clampWinPos(px, py)
+        local vp = screen.AbsoluteSize
+        local sz = Root.AbsoluteSize
+        local x = math.clamp(px, 0, math.max(vp.X - sz.X, 0))
+        local y = math.clamp(py, 0, math.max(vp.Y - 40, 0))
+        return UDim2.fromOffset(x, y)
+    end
+
+    local function reclaimWindow()
+        local vp = screen.AbsoluteSize
+        local p = Root.AbsolutePosition
+        local sz = Root.AbsoluteSize
+        if p.X < 0 or p.Y < 0 or p.X + 40 > vp.X or p.Y + 20 > vp.Y then
+            Root.AnchorPoint = Vector2.new(0, 0)
+            Root.Position = UDim2.fromOffset(math.max((vp.X - sz.X) / 2, 0), math.max((vp.Y - sz.Y) / 2, 0))
+        end
+    end
+
     Title.InputBegan:Connect(function(i)
         if maximized then return end
         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
             local startPos = Root.Position
             beginDrag(i, function(d)
-                Root.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+                local vp = screen.AbsoluteSize
+                local sz = Root.AbsoluteSize
+                local nx = startPos.X.Offset + d.X
+                local ny = startPos.Y.Offset + d.Y
+                if startPos.X.Scale > 0 then nx = startPos.X.Scale * vp.X + d.X end
+                if startPos.Y.Scale > 0 then ny = startPos.Y.Scale * vp.Y + d.Y end
+                Root.AnchorPoint = Vector2.new(0, 0)
+                Root.Position = clampWinPos(nx, ny)
             end)
         end
     end)
@@ -471,6 +496,27 @@ function UI:CreateWindow(cfg)
     end)
 
     
+    local showPill = new("TextButton", { Text = "SHOW", Font = FONT_B, TextSize = 12, TextColor3 = COL.NAVYT,
+        AutoButtonColor = false, BackgroundColor3 = COL.NAVY, BorderSizePixel = 0, Visible = false,
+        Size = UDim2.fromOffset(64, 24), Position = UDim2.new(0, 12, 0, 60), ZIndex = 9000, Parent = screen })
+    bevel(showPill, "raised")
+    local hideBtn = new("TextButton", { Text = "HIDE", Font = FONT, TextSize = 11, TextColor3 = COL.BLACK,
+        AutoButtonColor = false, BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
+        Size = UDim2.fromOffset(52, 18), Position = UDim2.new(1, -150, 0, 0), Parent = Status })
+    bevel(hideBtn, "raised")
+    hideBtn.MouseButton1Click:Connect(function()
+        Root.Visible = false
+        showPill.Visible = true
+    end)
+    showPill.MouseButton1Click:Connect(function()
+        Root.Visible = true
+        showPill.Visible = false
+        reclaimWindow()
+    end)
+    screen:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+        if Root.Visible then reclaimWindow() end
+    end)
+
     local PageHost = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -6), ClipsDescendants = true, Parent = Client })
 
     local Window, tabs = {}, {}
