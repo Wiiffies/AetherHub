@@ -1674,7 +1674,7 @@ end
 local HUB = { conns = {}, drawings = {}, highlights = {}, dead = false, lastSay = 0, lastKickAt = 0 }
 _G.AetherHub = HUB
 HUB.keyUrl = "https://aether-keys.wispz.workers.dev"
-HUB.ownerHwid = "7f5a5fe6-a16b-11f1-8ac4-806e6f6e6963"
+HUB.ownerHwid = "7b37663561356665362d613136622d313166312d386163342d3830366536663665363936337d"
 HUB.premium = false
 HUB.keyInput = ""
 HUB.keyActive = false
