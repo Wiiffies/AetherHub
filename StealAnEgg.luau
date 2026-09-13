@@ -609,23 +609,33 @@ function UI:CreateWindow(cfg)
         end
         local function refresh()
             local vh, ch, maxS = metrics()
-            if not page.Visible or maxS < 1 then SB.Visible = false; return end
+            if not page.Visible or maxS < 1 or vh < 1 or ch < 1 then SB.Visible = false; return end
             SB.Visible = true
-            local trackH = SB.AbsoluteSize.Y - 32
-            local th = math.clamp(trackH * vh / ch, 16, trackH)
+            local trackH = math.max(SB.AbsoluteSize.Y - 32, 1)
+            local th = math.clamp(trackH * vh / math.max(ch, 1), 16, trackH)
             local p = maxS > 0 and (page.CanvasPosition.Y / maxS) or 0
             thumb.Size = UDim2.new(1, 0, 0, th)
-            thumb.Position = UDim2.new(0, 0, 0, 16 + (trackH - th) * p)
+            thumb.Position = UDim2.new(0, 0, 0, 16 + math.max(trackH - th, 0) * p)
+        end
+        local reEvalBusy = false
+        local function refreshSoon()
+            task.defer(function()
+                if reEvalBusy then return end
+                reEvalBusy = true
+                page.AutomaticCanvasSize = Enum.AutomaticSize.None
+                page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                task.defer(function() reEvalBusy = false; refresh() end)
+            end)
         end
         page:GetPropertyChangedSignal("CanvasPosition"):Connect(refresh)
-        page:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(refresh)
-        page:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(refresh)
-        task.defer(refresh)
+        page:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(refreshSoon)
+        page:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(refreshSoon)
+        task.defer(refreshSoon)
 
 
         local function nudge(delta)
             local _, _, maxS = metrics()
-            page.CanvasPosition = Vector2.new(0, math.clamp(page.CanvasPosition.Y + delta, 0, maxS))
+            page.CanvasPosition = Vector2.new(0, math.clamp(math.floor(page.CanvasPosition.Y + delta), 0, maxS))
         end
         up.MouseButton1Click:Connect(function() nudge(-40) end)
         down.MouseButton1Click:Connect(function() nudge(40) end)
@@ -635,13 +645,13 @@ function UI:CreateWindow(cfg)
             if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
             local startY = i.Position.Y
             local startScroll = page.CanvasPosition.Y
-            local trackH = SB.AbsoluteSize.Y - 32
+            local trackH = math.max(SB.AbsoluteSize.Y - 32, 1)
             local _, ch, maxS = metrics()
             local conM, conE
             conM = UserInputService.InputChanged:Connect(function(m)
                 if m.UserInputType == Enum.UserInputType.MouseMovement then
-                    local d = (m.Position.Y - startY) / math.max(trackH, 1)
-                    page.CanvasPosition = Vector2.new(0, math.clamp(startScroll + d * ch, 0, maxS))
+                    local d = (m.Position.Y - startY) / trackH
+                    page.CanvasPosition = Vector2.new(0, math.clamp(math.floor(startScroll + d * ch), 0, maxS))
                 end
             end)
             conE = UserInputService.InputEnded:Connect(function(m)
@@ -650,7 +660,7 @@ function UI:CreateWindow(cfg)
         end)
 
 
-        return refresh
+        return refreshSoon
     end
 
 
@@ -843,14 +853,16 @@ function UI:CreateWindow(cfg)
             local setD = bevel(drop, "raised")
 
 
-            local list = new("Frame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Visible = false,
-                ZIndex = 4000, Parent = screen })
+            local list = new("ScrollingFrame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Visible = false,
+                ZIndex = 4000, Parent = screen, ScrollBarThickness = 2, ScrollBarImageColor3 = COL.G,
+                CanvasSize = UDim2.new(0, 0, 0, #options * 18), AutomaticCanvasSize = Enum.AutomaticSize.None,
+                ScrollingDirection = Enum.ScrollingDirection.Y, Active = true })
             outline(list)
             new("UIListLayout", { Parent = list })
             for _, opt in ipairs(options) do
                 local o = new("TextButton", { Text = "  " .. tostring(opt), Font = FONT, TextSize = SIZE,
                     TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = COL.TEXT, AutoButtonColor = false,
-                    BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 18), ZIndex = 4001, Parent = list })
+                    BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Size = UDim2.new(1, -2, 0, 18), ZIndex = 4001, Parent = list })
                 o.MouseEnter:Connect(function() o.BackgroundColor3 = COL.NAVY; o.TextColor3 = COL.NAVYT end)
                 o.MouseLeave:Connect(function() o.BackgroundColor3 = COL.FIELD; o.TextColor3 = COL.TEXT end)
                 o.MouseButton1Click:Connect(function()
@@ -871,8 +883,18 @@ function UI:CreateWindow(cfg)
                 setD(v and "pressed" or "raised")
                 if v then
                     local ap, as = field.AbsolutePosition, field.AbsoluteSize
-                    list.Position = UDim2.fromOffset(ap.X, ap.Y + as.Y)
-                    list.Size = UDim2.fromOffset(as.X, #options * 18)
+                    local ssz = screen.AbsoluteSize
+                    local lh = math.min(#options * 18, math.max(54, math.floor(ssz.Y * 0.42)))
+                    list.CanvasSize = UDim2.new(0, 0, 0, #options * 18)
+                    list.Size = UDim2.fromOffset(as.X, lh)
+                    local below = ssz.Y - (ap.Y + as.Y) - 4
+                    local flip = below < lh and ap.Y > lh
+                    if flip then
+                        list.Position = UDim2.fromOffset(ap.X, math.max(2, ap.Y - lh))
+                    else
+                        list.Position = UDim2.fromOffset(ap.X, math.floor(math.min(ap.Y + as.Y, ssz.Y - lh - 2)))
+                    end
+                    list.CanvasPosition = Vector2.new(0, 0)
                 end
             end
             local hit = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
@@ -921,8 +943,10 @@ function UI:CreateWindow(cfg)
                 AutoButtonColor = false, BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
                 Size = UDim2.fromOffset(16, 16), Position = UDim2.new(1, -18, 0.5, -8), Parent = field })
             local setD = bevel(drop, "raised")
-            local list = new("Frame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Visible = false,
-                ZIndex = 4000, Parent = screen })
+            local list = new("ScrollingFrame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Visible = false,
+                ZIndex = 4000, Parent = screen, ScrollBarThickness = 2, ScrollBarImageColor3 = COL.G,
+                CanvasSize = UDim2.new(0, 0, 0, #options * 18), AutomaticCanvasSize = Enum.AutomaticSize.None,
+                ScrollingDirection = Enum.ScrollingDirection.Y, Active = true })
             outline(list)
             new("UIListLayout", { Parent = list })
             local rows = {}
@@ -935,7 +959,7 @@ function UI:CreateWindow(cfg)
             for _, opt in ipairs(options) do
                 local o = new("TextButton", { Text = "    " .. tostring(opt), Font = FONT, TextSize = SIZE,
                     TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = COL.TEXT, AutoButtonColor = false,
-                    BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 18), ZIndex = 4001, Parent = list })
+                    BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Size = UDim2.new(1, -2, 0, 18), ZIndex = 4001, Parent = list })
                 rows[opt] = o
                 o.MouseEnter:Connect(function() o.BackgroundColor3 = COL.NAVY; o.TextColor3 = COL.NAVYT end)
                 o.MouseLeave:Connect(function() o.BackgroundColor3 = COL.FIELD; o.TextColor3 = COL.TEXT end)
@@ -953,8 +977,18 @@ function UI:CreateWindow(cfg)
                 setD(v and "pressed" or "raised")
                 if v then
                     local ap, as = field.AbsolutePosition, field.AbsoluteSize
-                    list.Position = UDim2.fromOffset(ap.X, ap.Y + as.Y)
-                    list.Size = UDim2.fromOffset(as.X, #options * 18)
+                    local ssz = screen.AbsoluteSize
+                    local lh = math.min(#options * 18, math.max(54, math.floor(ssz.Y * 0.42)))
+                    list.CanvasSize = UDim2.new(0, 0, 0, #options * 18)
+                    list.Size = UDim2.fromOffset(as.X, lh)
+                    local below = ssz.Y - (ap.Y + as.Y) - 4
+                    local flip = below < lh and ap.Y > lh
+                    if flip then
+                        list.Position = UDim2.fromOffset(ap.X, math.max(2, ap.Y - lh))
+                    else
+                        list.Position = UDim2.fromOffset(ap.X, math.floor(math.min(ap.Y + as.Y, ssz.Y - lh - 2)))
+                    end
+                    list.CanvasPosition = Vector2.new(0, 0)
                 end
             end
             local hit = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
@@ -1070,7 +1104,7 @@ function UI:CreateWindow(cfg)
 
         local page = new("ScrollingFrame", {
             BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, Active = true,
-            Size = UDim2.fromScale(1, 1), CanvasSize = UDim2.new(),
+            Size = UDim2.fromScale(1, 1),
             ScrollBarThickness = 0, ScrollingEnabled = true,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             AutomaticCanvasSize = Enum.AutomaticSize.Y, Parent = PageHost,
