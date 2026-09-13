@@ -1791,6 +1791,51 @@ local Library = assert(loadstring(__ADAPTER_SRC, "AetherAdapter"))(__UI)
 __ADAPTER_SRC = nil
 __UI = nil
 
+local __boot = (function()
+    local ok = true
+    local gui, label
+    pcall(function()
+        local parent = (type(gethui) == "function" and gethui()) or game:GetService("CoreGui")
+        gui = Instance.new("ScreenGui")
+        gui.Name = "AetherBoot"
+        gui.ResetOnSpawn = false
+        gui.IgnoreGuiInset = true
+        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        gui.Parent = parent
+        label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0, 340, 0, 26)
+        label.Position = UDim2.new(0, 12, 0, 40)
+        label.BackgroundColor3 = Color3.fromRGB(0, 0, 128)
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Font = Enum.Font.SourceSansBold
+        label.TextSize = 15
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Text = "  Aether: booting..."
+        label.Parent = gui
+    end)
+    return {
+        step = function(msg)
+            ok = true
+            pcall(function() if label then label.Text = "  Aether: " .. tostring(msg) end end)
+            pcall(function() print("[Aether] " .. tostring(msg)) end)
+        end,
+        fail = function(msg)
+            pcall(function()
+                if label then
+                    label.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+                    label.Text = "  Aether ERROR: " .. tostring(msg)
+                end
+            end)
+            pcall(function() warn("[Aether] " .. tostring(msg)) end)
+        end,
+        done = function()
+            pcall(function() if gui then task.delay(4, function() pcall(function() gui:Destroy() end) end) end end)
+        end,
+    }
+end)()
+__boot.step("UI library loaded")
+
+
 
 
 
@@ -1798,6 +1843,9 @@ __UI = nil
 do
     local prev = _G.AetherHub
     if prev and type(prev.Unload) == "function" then pcall(prev.Unload) end
+    if getgenv and getgenv().__AetherHubAC then
+        getgenv().__AetherHubAC = nil
+    end
 end
 local HUB = { conns = {}, drawings = {}, highlights = {}, dead = false, lastSay = 0, lastKickAt = 0 }
 _G.AetherHub = HUB
@@ -2079,6 +2127,7 @@ local function GetRootCFrame()
     return hrp and hrp.CFrame
 end
 local _AB = getgenv and getgenv() or _G
+__boot.step("feature setup starting")
 if not _AB.__AetherHubAC then
 _AB.__AetherHubAC = true
 local bypassActive = true
@@ -2433,13 +2482,16 @@ end
 
 HUB.keyDone = false
 HUB.keyResult = nil
+__boot.step("showing key dialog")
 HUB.ShowKeyDialog(function(ok) HUB.keyDone = true HUB.keyResult = ok end)
 while not HUB.keyDone and not HUB.dead do task.wait(0.1) end
 if HUB.keyResult == false then
+    __boot.fail("setup cancelled — dialog closed (X)")
     HUB.dead = true
     _G.AetherHub = nil
     return
 end
+__boot.step("key accepted, building window")
 local Window = Library:CreateWindow({
     Name = "Aether HUB | Steal an Egg",
     LoadingAnimation = true,
