@@ -35,47 +35,89 @@ local __UILIB_SRC = [==[
 
 
 
+--[[    Aether UI  —  MS Paint edition
+
+
+    A Windows 95 / MS Paint styled Roblox UI library. One look, done properly:
+      * 2px chiselled bevels on every surface (raised / pressed / sunken / etched)
+      * Navy title bar with a drawn program icon and real _ [] X glyph buttons
+      * Win95 tab control, group boxes, checkboxes, trackbars, comboboxes, spin fields
+      * Custom beveled scrollbar with arrow buttons
+      * Status bar with sunken hint panels, resize grip, maximise / restore
+      * "Zoom rectangle" open + close, instant everything else (authentic — Win95 didn't animate)
+      * Tooltips (the yellow kind)
+      * Message-box style notifications that cascade
+
+
+    The screen behind the window is NOT darkened.
+
+
+    API (backwards compatible with earlier Aether):
+      local UI  = loadstring(...)()
+      local win = UI:CreateWindow({ Title = "untitled - Paint", Size = UDim2.fromOffset(560, 420) })
+      local tab = win:AddTab("Options")            -- ("name"[, iconUnused])
+        tab:Section("Tools")
+        tab:Label("plain text", "status-bar hint")
+        tab:Button("Do it", fn, "hint")
+        tab:Toggle("Enable thing", false, fn, "hint")        -- checkbox
+        tab:Slider("Brush size", 1, 64, 8, fn, "hint")       -- trackbar
+        tab:Dropdown("Mode", {"Pencil","Brush","Airbrush"}, "Brush", fn, "hint")
+        tab:Keybind("Pick colour", Enum.KeyCode.K, fn, "hint")
+        tab:Radio("Fill", {"None","Outline","Solid"}, "Outline", fn)
+        tab:TextInput("Name", "untitled", fn)
+        local g = tab:Group("Advanced")                       -- group box; same methods
+          g:Toggle("Anti-alias", true)
+      win:Notify("Paint", "Saved to Desktop.", 4)             -- Notify(title,text[,dur[,kind])  kind: "info"|"warn"|"error"
+]]
+
 
 local UI = {}
 
 
+-- harmless stubs so scripts written against the themed build don't hard-error
 function UI:SetTheme() end
 UI.Themes = setmetatable({}, { __index = function() return {} end })
+
 
 local UserInputService = game:GetService("UserInputService")
 local TextService      = game:GetService("TextService")
 local CoreGui          = game:GetService("CoreGui")
 
 
-
+--============================================================================
+-- Palette (Windows 95 default scheme)
+--============================================================================
 
 
 local rgb = Color3.fromRGB
 local COL = {
-    W     = rgb(255, 255, 255),   
-    L     = rgb(223, 223, 223),   
-    FACE  = rgb(198, 198, 198),   
-    G     = rgb(128, 128, 128),   
-    K     = rgb( 10,  10,  10),   
+    W     = rgb(255, 255, 255),   -- button highlight
+    L     = rgb(223, 223, 223),   -- button light
+    FACE  = rgb(198, 198, 198),   -- 3D face
+    G     = rgb(128, 128, 128),   -- button shadow
+    K     = rgb( 10,  10,  10),   -- button dark shadow
     BLACK = rgb(  0,   0,   0),
-    NAVY  = rgb(  0,   0, 128),   
-    NAVYT = rgb(255, 255, 255),   
-    GRAYT = rgb(128, 128, 128),   
-    FIELD = rgb(255, 255, 255),   
+    NAVY  = rgb(  0,   0, 128),   -- active title / selection
+    NAVYT = rgb(255, 255, 255),   -- active title text
+    GRAYT = rgb(128, 128, 128),   -- inactive title / disabled text
+    FIELD = rgb(255, 255, 255),   -- input background
     TEXT  = rgb(  0,   0,   0),
-    TIP   = rgb(255, 255, 225),   
-    TEAL  = rgb(  0, 128, 128),   
+    TIP   = rgb(255, 255, 225),   -- tooltip background
+    TEAL  = rgb(  0, 128, 128),   -- the desktop
     RED   = rgb(200,   0,   0),
     YEL   = rgb(255, 216,   0),
 }
 
+
 local FONT      = Enum.Font.SourceSans
 local FONT_B    = Enum.Font.SourceSansBold
-local SIZE      = 15          
-local SIZE_T    = 15          
+local SIZE      = 15          -- body text
+local SIZE_T    = 15          -- title text
 
 
-
+--============================================================================
+-- Low-level helpers
+--============================================================================
 
 
 local function new(class, props)
@@ -86,6 +128,7 @@ local function new(class, props)
     if props and props.Parent then i.Parent = props.Parent end
     return i
 end
+
 
 local function txt(props)
     props.Font = props.Font or FONT
@@ -98,34 +141,38 @@ local function txt(props)
     return new("TextLabel", props)
 end
 
+
 local function measure(s, size, font)
     return TextService:GetTextSize(s, size or SIZE, font or FONT, Vector2.new(4000, 40)).X
 end
 
 
+-- 8-slot chiselled border.  Slots: t0 l0 b0 r0 t1 l1 b1 r1
 local BEVEL = {
     raised   = { "W","W","K","K", "L","L","G","G" },
     pressed  = { "K","K","W","W", "G","G","L","L" },
-    field    = { "G","G","W","W", "K","K","L","L" },   
-    group    = { "G","G","W","W", "W","W","G","G" },   
-    tabOn    = { "W","W","",  "G", "",  "", "", ""  }, 
+    field    = { "G","G","W","W", "K","K","L","L" },   -- sunken (inputs, client)
+    group    = { "G","G","W","W", "W","W","G","G" },   -- etched (group boxes)
+    tabOn    = { "W","W","",  "G", "",  "", "", ""  }, -- active tab: no bottom
     tabOff   = { "W","W","G", "G", "",  "", "", ""  },
     thin     = { "W","W","G", "G", "",  "", "", ""  },
     thinIn   = { "G","G","W", "W", "",  "", "", ""  },
 }
 
+
 local SLOT = {
-    { UDim2.new(0,0,0,0),  UDim2.new(1,0,0,1) },   
-    { UDim2.new(0,0,0,0),  UDim2.new(0,1,1,0) },   
-    { UDim2.new(0,0,1,-1), UDim2.new(1,0,0,1) },   
-    { UDim2.new(1,-1,0,0), UDim2.new(0,1,1,0) },   
-    { UDim2.new(0,1,0,1),  UDim2.new(1,-2,0,1) },  
-    { UDim2.new(0,1,0,1),  UDim2.new(0,1,1,-2) },  
-    { UDim2.new(0,1,1,-2), UDim2.new(1,-2,0,1) },  
-    { UDim2.new(1,-2,0,1), UDim2.new(0,1,1,-2) },  
+    { UDim2.new(0,0,0,0),  UDim2.new(1,0,0,1) },   -- t0
+    { UDim2.new(0,0,0,0),  UDim2.new(0,1,1,0) },   -- l0
+    { UDim2.new(0,0,1,-1), UDim2.new(1,0,0,1) },   -- b0
+    { UDim2.new(1,-1,0,0), UDim2.new(0,1,1,0) },   -- r0
+    { UDim2.new(0,1,0,1),  UDim2.new(1,-2,0,1) },  -- t1
+    { UDim2.new(0,1,0,1),  UDim2.new(0,1,1,-2) },  -- l1
+    { UDim2.new(0,1,1,-2), UDim2.new(1,-2,0,1) },  -- b1
+    { UDim2.new(1,-2,0,1), UDim2.new(0,1,1,-2) },  -- r1
 }
 
 
+-- attaches a bevel to `frame`; returns setter(styleName)
 local function bevel(frame, style)
     local edges = {}
     for i = 1, 8 do
@@ -152,12 +199,15 @@ local function bevel(frame, style)
 end
 
 
+-- solid 1px border (dropdown lists, tooltips)
 local function outline(frame, color)
     return new("UIStroke", { Color = color or COL.BLACK, Thickness = 1, Parent = frame })
 end
 
 
-
+--============================================================================
+-- Screen / tooltip singletons
+--============================================================================
 
 
 local screen = new("ScreenGui", {
@@ -169,6 +219,7 @@ local screen = new("ScreenGui", {
     Parent = (gethui and gethui()) or CoreGui,
 })
 
+
 local Tip = new("Frame", {
     BackgroundColor3 = COL.TIP, BorderSizePixel = 0, Visible = false,
     ZIndex = 6000, AutomaticSize = Enum.AutomaticSize.XY, Parent = screen,
@@ -176,6 +227,7 @@ local Tip = new("Frame", {
 outline(Tip)
 local TipText = txt({ Parent = Tip, Position = UDim2.fromOffset(4, 2), AutomaticSize = Enum.AutomaticSize.XY, Size = UDim2.fromOffset(0, 0), ZIndex = 6001 })
 new("UIPadding", { PaddingLeft = UDim.new(0,4), PaddingRight = UDim.new(0,4), PaddingTop = UDim.new(0,1), PaddingBottom = UDim.new(0,2), Parent = Tip })
+
 
 local function attachTip(host, text, onHint)
     if not text or text == "" then return end
@@ -187,7 +239,7 @@ local function attachTip(host, text, onHint)
         task.delay(0.7, function()
             if token ~= mine then return end
             local m = UserInputService:GetMouseLocation()
-            
+            -- GetMouseLocation omits the 36px top-inset; screen uses IgnoreGuiInset
             Tip.Position = UDim2.fromOffset(m.X + 12, m.Y + 36 + 18)
             TipText.Text = text
             Tip.Visible = true
@@ -206,10 +258,12 @@ local function attachTip(host, text, onHint)
 end
 
 
+--============================================================================
+-- Drawn glyphs
+--============================================================================
 
 
-
-local function drawPaintIcon(parent)   
+local function drawPaintIcon(parent)   -- 14x14 program icon
     local box = new("Frame", { BackgroundColor3 = COL.W, BorderSizePixel = 0, Size = UDim2.fromScale(1,1), Parent = parent })
     outline(box)
     local swatch = { COL.RED, rgb(0,168,0), rgb(0,0,255), COL.YEL }
@@ -225,10 +279,12 @@ local function drawPaintIcon(parent)
     end
 end
 
+
 local function glyphMin(b)
     new("Frame", { BackgroundColor3 = COL.BLACK, BorderSizePixel = 0,
         Size = UDim2.fromOffset(7, 2), Position = UDim2.new(0, 4, 1, -4), AnchorPoint = Vector2.new(0, 1), Parent = b })
 end
+
 
 local function glyphMax(b)
     local w = new("Frame", { BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
@@ -236,6 +292,7 @@ local function glyphMax(b)
     outline(w)
     new("Frame", { BackgroundColor3 = COL.BLACK, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2), Parent = w })
 end
+
 
 local function glyphRestore(b)
     local back = new("Frame", { BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
@@ -248,6 +305,7 @@ local function glyphRestore(b)
     new("Frame", { BackgroundColor3 = COL.BLACK, BorderSizePixel = 0, Size = UDim2.new(1,0,0,2), Parent = front })
 end
 
+
 local function glyphX(b)
     for _, r in ipairs({ 45, -45 }) do
         new("Frame", { BackgroundColor3 = COL.BLACK, BorderSizePixel = 0, Rotation = r,
@@ -256,7 +314,9 @@ local function glyphX(b)
 end
 
 
-
+--============================================================================
+-- A caption button ( _ [] X and the like )
+--============================================================================
 
 
 local function captionButton(parent, xOff, draw, onClick)
@@ -278,7 +338,9 @@ local function captionButton(parent, xOff, draw, onClick)
 end
 
 
-
+--============================================================================
+-- Window
+--============================================================================
 
 
 function UI:CreateWindow(cfg)
@@ -287,11 +349,13 @@ function UI:CreateWindow(cfg)
     local winSize = cfg.Size or UDim2.fromOffset(560, 420)
     local minW, minH = cfg.MinWidth or 360, cfg.MinHeight or 240
 
-    
+
+    -- optional teal desktop (off by default: screen brightness unchanged)
     local desktop
     if cfg.Desktop then
         desktop = new("Frame", { BackgroundColor3 = COL.TEAL, BorderSizePixel = 0, Size = UDim2.fromScale(1,1), Parent = screen })
     end
+
 
     local Root = new("Frame", {
         BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
@@ -300,7 +364,8 @@ function UI:CreateWindow(cfg)
     })
     bevel(Root, "raised")
 
-    
+
+    ------------------------------------------------------------------ title bar
     local Title = new("Frame", {
         BackgroundColor3 = COL.NAVY, BorderSizePixel = 0,
         Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 0, 18), Parent = Root,
@@ -312,15 +377,18 @@ function UI:CreateWindow(cfg)
         Text = title, Position = UDim2.fromOffset(20, 0), Size = UDim2.new(1, -74, 1, 0),
     })
 
+
     local maximized, preRect = false, nil
-    local btnMin  = captionButton(Title, -72, glyphMin)
+    local btnMin  = captionButton(Title, -52, glyphMin)
     local btnMaxHold
     local btnMax, mh = captionButton(Title, -36, glyphMax)
     btnMaxHold = mh
     local btnClose = captionButton(Title, -18, glyphX)
 
-    
+
+    ------------------------------------------------------------------ tab strip
     local TabStrip = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(6, 24), Size = UDim2.new(1, -12, 0, 20), Parent = Root })
+
 
     local Client = new("Frame", {
         BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
@@ -328,7 +396,8 @@ function UI:CreateWindow(cfg)
     })
     bevel(Client, "thin")
 
-    
+
+    ------------------------------------------------------------------ status bar
     local Status = new("Frame", { BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
         Position = UDim2.new(0, 3, 1, -21), Size = UDim2.new(1, -6, 0, 18), Parent = Root })
     local function statusPanel(x, w, wScale)
@@ -343,11 +412,13 @@ function UI:CreateWindow(cfg)
     sizePanel.Position = UDim2.new(1, -92, 0, 0)
     local sizeText  = txt({ Parent = sizePanel, Text = "", Position = UDim2.fromOffset(6, 0), Size = UDim2.new(1, -10, 1, 0), TextXAlignment = Enum.TextXAlignment.Center })
 
+
     local function setHint(s)
         hintText.Text = s or "For Help, press F1"
     end
 
-    
+
+    ------------------------------------------------------------------ resize grip
     local grip = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
         Size = UDim2.fromOffset(16, 16), Position = UDim2.new(1, -18, 1, -18), ZIndex = 5, Parent = Root })
     for i = 0, 2 do
@@ -359,12 +430,14 @@ function UI:CreateWindow(cfg)
         end
     end
 
+
     local function refreshSize()
         sizeText.Text = math.floor(Root.AbsoluteSize.X) .. " x " .. math.floor(Root.AbsoluteSize.Y)
     end
     Root:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshSize)
 
-    
+
+    ------------------------------------------------------------------ drag / resize / maximise
     local function beginDrag(startInput, apply)
         local origin = startInput.Position
         local conMove, conEnd
@@ -380,40 +453,33 @@ function UI:CreateWindow(cfg)
         end)
     end
 
-    local function clampWinPos(px, py)
+
+    local function boundPos(pos)
         local vp = screen.AbsoluteSize
         local sz = Root.AbsoluteSize
-        local x = math.clamp(px, 0, math.max(vp.X - sz.X, 0))
-        local y = math.clamp(py, 0, math.max(vp.Y - 40, 0))
-        return UDim2.fromOffset(x, y)
+        local a = Root.AnchorPoint
+        local K = 40
+        local px = pos.X.Scale * vp.X + pos.X.Offset
+        local py = pos.Y.Scale * vp.Y + pos.Y.Offset
+        local loX = K - sz.X * (1 - a.X)
+        local hiX = vp.X - K + sz.X * a.X
+        if hiX < loX then hiX = loX end
+        px = math.clamp(px, loX, hiX)
+        local top = py - sz.Y * a.Y
+        top = math.clamp(top, 0, math.max(0, vp.Y - K))
+        py = top + sz.Y * a.Y
+        return UDim2.new(pos.X.Scale, px - pos.X.Scale * vp.X, pos.Y.Scale, py - pos.Y.Scale * vp.Y)
     end
-
-    local function reclaimWindow()
-        local vp = screen.AbsoluteSize
-        local p = Root.AbsolutePosition
-        local sz = Root.AbsoluteSize
-        if p.X < 0 or p.Y < 0 or p.X + 40 > vp.X or p.Y + 20 > vp.Y then
-            Root.AnchorPoint = Vector2.new(0, 0)
-            Root.Position = UDim2.fromOffset(math.max((vp.X - sz.X) / 2, 0), math.max((vp.Y - sz.Y) / 2, 0))
-        end
-    end
-
     Title.InputBegan:Connect(function(i)
         if maximized then return end
         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
             local startPos = Root.Position
             beginDrag(i, function(d)
-                local vp = screen.AbsoluteSize
-                local sz = Root.AbsoluteSize
-                local nx = startPos.X.Offset + d.X
-                local ny = startPos.Y.Offset + d.Y
-                if startPos.X.Scale > 0 then nx = startPos.X.Scale * vp.X + d.X end
-                if startPos.Y.Scale > 0 then ny = startPos.Y.Scale * vp.Y + d.Y end
-                Root.AnchorPoint = Vector2.new(0, 0)
-                Root.Position = clampWinPos(nx, ny)
+                Root.Position = boundPos(UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y))
             end)
         end
     end)
+
 
     grip.InputBegan:Connect(function(i)
         if maximized then return end
@@ -424,6 +490,7 @@ function UI:CreateWindow(cfg)
             end)
         end
     end)
+
 
     local function setMaximized(v)
         maximized = v
@@ -452,7 +519,8 @@ function UI:CreateWindow(cfg)
         end)
     end
 
-    
+
+    ------------------------------------------------------------------ open / close zoom
     local function zoomRect(fromAbs, toAbs, steps, done)
         local o = new("Frame", { BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 8000, Parent = screen })
         outline(o, COL.W).Thickness = 2
@@ -468,12 +536,14 @@ function UI:CreateWindow(cfg)
         if done then done() end
     end
 
+
     task.spawn(function()
         local vp = screen.AbsoluteSize
         local final = { p = Vector2.new(vp.X/2 - winSize.X.Offset/2, vp.Y/2 - winSize.Y.Offset/2), s = Vector2.new(winSize.X.Offset, winSize.Y.Offset) }
         local start = { p = final.p + final.s * 0.4, s = final.s * 0.2 }
         zoomRect(start, final, 3, function() Root.Visible = true; refreshSize() end)
     end)
+
 
     local closed = false
     local function destroy()
@@ -489,6 +559,7 @@ function UI:CreateWindow(cfg)
     end
     btnClose.MouseButton1Click:Connect(destroy)
 
+
     local rolled, preRoll = false, nil
     btnMin.MouseButton1Click:Connect(function()
         rolled = not rolled
@@ -502,31 +573,13 @@ function UI:CreateWindow(cfg)
         end
     end)
 
-    
-    local showPill = new("TextButton", { Text = "SHOW", Font = FONT_B, TextSize = 12, TextColor3 = COL.NAVYT,
-        AutoButtonColor = false, BackgroundColor3 = COL.NAVY, BorderSizePixel = 0, Visible = false,
-        Size = UDim2.fromOffset(64, 24), Position = UDim2.new(0, 12, 0, 60), ZIndex = 9000, Parent = screen })
-    bevel(showPill, "raised")
-    local hideBtn = new("TextButton", { Text = "HIDE", Font = FONT, TextSize = 11, TextColor3 = COL.BLACK,
-        AutoButtonColor = false, BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
-        Size = UDim2.fromOffset(52, 18), Position = UDim2.new(1, -150, 0, 0), Parent = Status })
-    bevel(hideBtn, "raised")
-    hideBtn.MouseButton1Click:Connect(function()
-        Root.Visible = false
-        showPill.Visible = true
-    end)
-    showPill.MouseButton1Click:Connect(function()
-        Root.Visible = true
-        showPill.Visible = false
-        reclaimWindow()
-    end)
-    screen:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-        if Root.Visible then reclaimWindow() end
-    end)
 
+    ------------------------------------------------------------------ pages + scrollbar
     local PageHost = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -6), ClipsDescendants = true, Parent = Client })
 
+
     local Window, tabs = {}, {}
+
 
     local function buildScrollbar(page)
         local SB = new("Frame", { BackgroundColor3 = COL.FACE, BorderSizePixel = 0, Visible = false,
@@ -548,6 +601,7 @@ function UI:CreateWindow(cfg)
             Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 0, 16), Parent = SB })
         bevel(thumb, "raised")
 
+
         local function metrics()
             local vh = page.AbsoluteWindowSize.Y
             local ch = page.AbsoluteCanvasSize.Y
@@ -568,12 +622,14 @@ function UI:CreateWindow(cfg)
         page:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(refresh)
         task.defer(refresh)
 
+
         local function nudge(delta)
             local _, _, maxS = metrics()
             page.CanvasPosition = Vector2.new(0, math.clamp(page.CanvasPosition.Y + delta, 0, maxS))
         end
         up.MouseButton1Click:Connect(function() nudge(-40) end)
         down.MouseButton1Click:Connect(function() nudge(40) end)
+
 
         thumb.InputBegan:Connect(function(i)
             if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
@@ -593,11 +649,14 @@ function UI:CreateWindow(cfg)
             end)
         end)
 
+
         return refresh
     end
 
-    
+
+    --====================================================================== element factory
     local function makeElements(container, refreshScroll)
+
 
         local function row(h)
             return new("Frame", { BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -605,7 +664,9 @@ function UI:CreateWindow(cfg)
         end
         local function bump() if refreshScroll then task.defer(refreshScroll) end end
 
+
         local S = {}
+
 
         function S:Label(text, hint)
             local r = row(16)
@@ -613,6 +674,7 @@ function UI:CreateWindow(cfg)
             attachTip(l, hint, setHint)
             bump(); return S
         end
+
 
         function S:Section(text)
             local r = row(20)
@@ -624,7 +686,9 @@ function UI:CreateWindow(cfg)
             bump(); return S
         end
 
+
         S.Divider = function(_) local r = row(6); local ln = new("Frame",{BackgroundTransparency=1,Size=UDim2.new(1,0,0,2),Position=UDim2.fromOffset(0,2),Parent=r}); bevel(ln,"thinIn"); bump(); return S end
+
 
         function S:Button(text, callback, hint)
             local r = row(24)
@@ -642,7 +706,8 @@ function UI:CreateWindow(cfg)
             bump(); return S
         end
 
-        function S:Toggle(text, default, callback, hint)   
+
+        function S:Toggle(text, default, callback, hint)   -- checkbox
             local state = default == true
             local r = row(18)
             local box = new("Frame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0,
@@ -663,6 +728,7 @@ function UI:CreateWindow(cfg)
             bump()
             return { Set = function(_, v) set(v == true, true) end, Get = function() return state end }
         end
+
 
         function S:Radio(text, options, default, callback, hint)
             local selected = default or options[1]
@@ -696,7 +762,8 @@ function UI:CreateWindow(cfg)
             return { Set = function(_, v) set(v, true) end, Get = function() return selected end }
         end
 
-        function S:Slider(text, min, max, default, callback, hint)   
+
+        function S:Slider(text, min, max, default, callback, hint)   -- trackbar
             local value = math.clamp(default or min, min, max)
             local r = row(36)
             txt({ Parent = r, Text = text, Size = UDim2.new(1, -52, 0, 16) })
@@ -706,10 +773,11 @@ function UI:CreateWindow(cfg)
             local valTxt = txt({ Parent = valBox, Text = tostring(value), Size = UDim2.new(1, -6, 1, 0),
                 Position = UDim2.fromOffset(3, 0), TextXAlignment = Enum.TextXAlignment.Right })
 
+
             local track = new("Frame", { BackgroundColor3 = COL.G, BorderSizePixel = 0,
                 Size = UDim2.new(1, -14, 0, 4), Position = UDim2.fromOffset(2, 24), Parent = r })
             bevel(track, "field")
-            
+            -- tick marks
             for t = 0, 10 do
                 new("Frame", { BackgroundColor3 = COL.G, BorderSizePixel = 0, Size = UDim2.fromOffset(1, 3),
                     Position = UDim2.new(t / 10, 0, 0, 8), Parent = track })
@@ -718,6 +786,7 @@ function UI:CreateWindow(cfg)
                 Size = UDim2.fromOffset(12, 20), AnchorPoint = Vector2.new(.5, .5),
                 Position = UDim2.new((value - min) / (max - min), 0, 0.5, 0), ZIndex = 3, Parent = track })
             bevel(thumb, "raised")
+
 
             local function apply(rel, fire)
                 rel = math.clamp(rel, 0, 1)
@@ -728,6 +797,7 @@ function UI:CreateWindow(cfg)
                 if fire and callback then task.spawn(callback, value) end
             end
             local function fromX(x) return (x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1) end
+
 
             local hit = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
                 ZIndex = 6, Size = UDim2.new(1, 0, 0, 22), Position = UDim2.fromOffset(0, 15), Parent = r })
@@ -754,11 +824,13 @@ function UI:CreateWindow(cfg)
             }
         end
 
-        function S:Dropdown(text, options, default, callback, hint)   
+
+        function S:Dropdown(text, options, default, callback, hint)   -- combobox
             local selected = default or options[1]
             local open = false
             local r = row(20)
             txt({ Parent = r, Text = text, Size = UDim2.new(0.4, -6, 1, 0) })
+
 
             local field = new("Frame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0,
                 Size = UDim2.new(0.6, 0, 1, 0), Position = UDim2.new(0.4, 0, 0, 0), Parent = r })
@@ -769,6 +841,7 @@ function UI:CreateWindow(cfg)
                 AutoButtonColor = false, BackgroundColor3 = COL.FACE, BorderSizePixel = 0,
                 Size = UDim2.fromOffset(16, 16), Position = UDim2.new(1, -18, 0.5, -8), Parent = field })
             local setD = bevel(drop, "raised")
+
 
             local list = new("Frame", { BackgroundColor3 = COL.FIELD, BorderSizePixel = 0, Visible = false,
                 ZIndex = 4000, Parent = screen })
@@ -787,8 +860,10 @@ function UI:CreateWindow(cfg)
                 end)
             end
 
+
             local catcher = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
                 Size = UDim2.fromScale(1,1), ZIndex = 3999, Visible = false, Parent = screen })
+
 
             local function setOpen(v)
                 open = v
@@ -812,6 +887,7 @@ function UI:CreateWindow(cfg)
                 Get = function() return selected end,
             }
         end
+
 
         function S:MultiDropdown(text, options, default, callback, hint)
             local sel = {}
@@ -931,6 +1007,7 @@ function UI:CreateWindow(cfg)
             return { Get = function() return key end }
         end
 
+
         function S:TextInput(text, default, callback, hint)
             local r = row(38)
             txt({ Parent = r, Text = text, Size = UDim2.new(1, 0, 0, 15) })
@@ -945,6 +1022,7 @@ function UI:CreateWindow(cfg)
             bump()
             return { Set = function(_, v) tb.Text = tostring(v) end, Get = function() return tb.Text end }
         end
+
 
         function S:Group(titleText)
             local g = new("Frame", { BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -965,15 +1043,19 @@ function UI:CreateWindow(cfg)
             return makeElements(inner, refreshScroll)
         end
 
-        
+
+        -- v1 compat
         S.Paragraph = function(_, t, b) S:Section(t); if b then S:Label(b) end; return S end
+
 
         return S
     end
 
-    
+
+    --====================================================================== tabs
     local tabAccX = 0
     local activeTab
+
 
     function Window:AddTab(name)
         local w = math.max(52, measure(name) + 20)
@@ -984,6 +1066,7 @@ function UI:CreateWindow(cfg)
         local cap = txt({ Parent = btn, Text = name, Size = UDim2.fromScale(1,1), ZIndex = 2,
             TextXAlignment = Enum.TextXAlignment.Center })
         tabAccX = tabAccX + w - 1
+
 
         local page = new("ScrollingFrame", {
             BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false, Active = true,
@@ -996,8 +1079,10 @@ function UI:CreateWindow(cfg)
             PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 8), Parent = page })
         new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = page })
 
+
         local refreshScroll = buildScrollbar(page)
         local entry = { btn = btn, page = page, cap = cap, setTab = setTab, w = w, x0 = x0, refresh = refreshScroll }
+
 
         local function select()
             for _, t in ipairs(tabs) do
@@ -1018,13 +1103,16 @@ function UI:CreateWindow(cfg)
         btn.MouseButton1Click:Connect(select)
         attachTip(btn, cfg.TabHint, setHint)
 
+
         table.insert(tabs, entry)
         if #tabs == 1 then select() end
+
 
         return makeElements(page, refreshScroll)
     end
 
-    
+
+    --====================================================================== notifications
     local notifX = 0
     function Window:Notify(nTitle, nText, duration, kind)
         duration = duration or 4
@@ -1036,10 +1124,12 @@ function UI:CreateWindow(cfg)
         bevel(box, "raised")
         notifX = (notifX + 24) % 120
 
+
         local bar = new("Frame", { BackgroundColor3 = COL.NAVY, BorderSizePixel = 0, ZIndex = 5001,
             Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 0, 18), Parent = box })
         txt({ Parent = bar, Font = FONT_B, TextColor3 = COL.NAVYT, Text = nTitle or "Paint",
             Position = UDim2.fromOffset(6, 0), Size = UDim2.new(1, -30, 1, 0), ZIndex = 5002 })
+
 
         local iconColor = kind == "error" and COL.RED or kind == "warn" and COL.YEL or COL.NAVY
         local glyph = kind == "error" and "\u{2715}" or kind == "warn" and "!" or "i"
@@ -1049,8 +1139,10 @@ function UI:CreateWindow(cfg)
         txt({ Parent = ic, Font = FONT_B, TextSize = 20, TextColor3 = COL.W, Text = glyph,
             Size = UDim2.fromScale(1,1), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 5002 })
 
+
         txt({ Parent = box, Text = nText or "", TextWrapped = true, ZIndex = 5001,
             Position = UDim2.fromOffset(58, 30), Size = UDim2.fromOffset(bw - 74, 52) })
+
 
         local ok = new("TextButton", { Text = "OK", Font = FONT, TextSize = SIZE, TextColor3 = COL.BLACK,
             AutoButtonColor = false, BackgroundColor3 = COL.FACE, BorderSizePixel = 0, ZIndex = 5001,
@@ -1066,14 +1158,16 @@ function UI:CreateWindow(cfg)
         task.delay(duration, close)
     end
 
+
     function Window:Destroy() destroy() end
     function Window:SetTitle(s) titleText.Text = s end
+
 
     return Window
 end
 
-return UI
 
+return UI
 ]==]
 
 local __ADAPTER_SRC = [==[
@@ -1440,8 +1534,8 @@ local function makeControls(C)
         end
         function H:SetOptions(n) opts = n or {} end
         C:_run(function(sc)
-            local h = sc:MultiDropdown(o.Name or "Multi", opts, o.Default, function()
-                local cur = h.Get()
+            local h = sc:MultiDropdown(o.Name or "Multi", opts, o.Default, function(cur)
+                cur = cur or fromV(o.Default)
                 if o.Flag then Library.Flags[o.Flag] = cur end
                 if type(o.Callback) == "function" then task.spawn(o.Callback, cur) end
             end)
@@ -1781,15 +1875,25 @@ HUB.ActivatePremium = function(key)
         pcall(function()
             if type(writefile) == "function" then writefile("AetherHub_key.txt", key) end
         end)
-        if HUB.premium then Notify("Premium", "Activated — premium unlocked.", "Success")
-        else Notify("Premium", "Activated.", "Success") end
+        if HUB.premium then
+            Notify("Premium", "Activated! ESP, Auto Sell, Server Hop and all Premium features unlocked.", "Success", 5)
+        else
+            Notify("Premium", "Key activated (normal). Premium keys unlock ESP, Auto Sell & Server Hop.", "Info", 5)
+        end
+        if type(HUB.preHook) == "function" then task.spawn(HUB.preHook) end
         return true
     end
     HUB.premium = false
     HUB.keyActive = false
     local why = "Invalid key."
-    if type(data) == "table" and type(data.reason) == "string" then why = "Invalid key: " .. data.reason end
-    Notify("Premium", why, "Error")
+    if type(data) == "table" then
+        local reason = data.reason
+        if reason == "banned" then why = "This key has been banned."
+        elseif reason == "expired" then why = "This key has expired. Get a new one."
+        elseif reason == "no key" then why = "Invalid key. Check it and try again."
+        elseif type(reason) == "string" and #reason > 0 then why = "Invalid key: " .. reason end
+    end
+    Notify("Premium", why, "Error", 5)
     return false
 end
 HUB.ShowKeyDialog = function(onDone)
@@ -1808,14 +1912,6 @@ HUB.ShowKeyDialog = function(onDone)
         end
     end)
     if type(saved) == "string" then saved = saved:gsub("%s+", "") end
-    if saved and #saved > 0 then
-        HUB.keyInput = saved
-        task.spawn(function()
-            HUB.ActivatePremium(saved)
-            finish(true)
-        end)
-        return
-    end
     local parent = nil
     pcall(function()
         if type(gethui) == "function" then parent = gethui() end
@@ -1880,7 +1976,7 @@ HUB.ShowKeyDialog = function(onDone)
     mk("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.SourceSans, TextSize = 14, TextColor3 = BLACK, TextXAlignment = Enum.TextXAlignment.Left, Text = "Enter key", Position = UDim2.fromOffset(12, 26), Size = UDim2.new(1, -24, 0, 18) }, win)
     local field = mk("Frame", { BackgroundColor3 = WHITE, BorderSizePixel = 0, Position = UDim2.fromOffset(12, 48), Size = UDim2.fromOffset(216, 22) }, win)
     sunken(field, 216, 22)
-    local tb = mk("TextBox", { Text = "", PlaceholderText = "AETHER-XXXX-XXXX-XXXX", Font = Enum.Font.SourceSans, TextSize = 14, TextColor3 = BLACK, PlaceholderColor3 = GRAY, BackgroundTransparency = 1, ClearTextOnFocus = false, Position = UDim2.fromOffset(4, 0), Size = UDim2.new(1, -8, 1, 0) }, field)
+    local tb = mk("TextBox", { Text = saved or "", PlaceholderText = "AETHER-XXXX-XXXX-XXXX", Font = Enum.Font.SourceSans, TextSize = 14, TextColor3 = BLACK, PlaceholderColor3 = GRAY, BackgroundTransparency = 1, ClearTextOnFocus = false, Position = UDim2.fromOffset(4, 0), Size = UDim2.new(1, -8, 1, 0) }, field)
     local go = mk("TextButton", { Text = ">", Font = Enum.Font.SourceSansBold, TextSize = 16, TextColor3 = BLACK, AutoButtonColor = false, BackgroundColor3 = FACE, BorderSizePixel = 0, Position = UDim2.fromOffset(234, 48), Size = UDim2.fromOffset(74, 22) }, win)
     raised(go, 74, 22)
     local stat = mk("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.SourceSans, TextSize = 13, TextColor3 = RED, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, Text = "", Position = UDim2.fromOffset(12, 76), Size = UDim2.new(1, -24, 0, 20) }, win)
@@ -1909,19 +2005,6 @@ HUB.ShowKeyDialog = function(onDone)
     xbtn.MouseButton1Click:Connect(function()
         finish(false)
     end)
-    task.spawn(function()
-        local ok, res = pcall(function()
-            return game:HttpGet(HUB.keyUrl .. "/key/current")
-        end)
-        if ok and type(res) == "string" then
-            local data = nil
-            pcall(function() data = game:GetService("HttpService"):JSONDecode(res) end)
-            if type(data) == "table" and type(data.key) == "string" and #data.key > 0 and tb.Text == "" then
-                tb.Text = data.key
-                stat.Text = "Key found. Press > to continue."
-            end
-        end
-    end)
     local UIS = game:GetService("UserInputService")
     bar.InputBegan:Connect(function(i)
         if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
@@ -1942,33 +2025,29 @@ HUB.ShowKeyDialog = function(onDone)
         end)
     end)
 end
-HUB.keyDone = false
-HUB.keyResult = nil
-HUB.ShowKeyDialog(function(ok) HUB.keyDone = true HUB.keyResult = ok end)
-while not HUB.keyDone and not HUB.dead do task.wait(0.1) end
-if HUB.keyResult == false then
-    HUB.dead = true
-    _G.AetherHub = nil
-    return
-end
-local Window = Library:CreateWindow({
-    Name = "Aether HUB | Steal an Egg",
-    LoadingAnimation = true,
-    LoadingText = "Aether",
-    LoadingDuration = 2.0,
-})
 
-local function safeCallback(fn)
-    return function(...)
-        local ok, err = pcall(fn, ...)
-        if not ok then
-            pcall(Notify, "Aether HUB", "Error: " .. tostring(err), "Error", 4)
-        end
-    end
+local function findChar() return LP.Character end
+local function findHum()
+    local ch = LP.Character
+    return ch and ch:FindFirstChildOfClass("Humanoid")
+end
+local function findHRP()
+    local ch = LP.Character
+    return ch and (ch:FindFirstChild("HumanoidRootPart") or ch.PrimaryPart or ch:FindFirstChildWhichIsA("BasePart"))
 end
 
+local GetCharacter = findChar
+local GetHumanoid  = findHum
+local GetHRP       = findHRP
 
-
+local function GetRootCFrame()
+    local hrp = findHRP()
+    return hrp and hrp.CFrame
+end
+local _AB = getgenv and getgenv() or _G
+if not _AB.__AetherHubAC then
+_AB.__AetherHubAC = true
+local bypassActive = true
 
 local function bypassClientDetections()
     if typeof(filtergc) ~= "function" or typeof(debug) ~= "table" or typeof(debug.getupvalues) ~= "function" then
@@ -2009,51 +2088,27 @@ pcall(bypassClientDetections)
 
 
 pcall(function()
-    local getgc = getgc or (debug and debug.getgc)
-    local setmeta = setrawmetatable or setmetatable
-    local getmeta = getrawmetatable or getmetatable
-
-    if getgc and setmeta then
-        for _, obj in ipairs(getgc(true)) do
-            if typeof(obj) == "table" and not (getmeta and getmeta(obj)) then
-                local mainrun = false
-                for _, v in pairs(obj) do
-                    if v == obj then
-                        mainrun = true
-                        break
-                    end
-                end
-                if mainrun then
-                    for _, v in pairs(obj) do
-                        if typeof(v) == "number" and v >= 1 and v <= 3 and obj[v] == nil then
-                            pcall(setmeta, obj, { __newindex = function() end })
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
-
-pcall(function()
     local getconstants = getconstants or (debug and debug.getconstants)
     local setconstant = setconstant or (debug and debug.setconstant)
     local islclosure = islclosure or function(Function)
         return not pcall(setfenv, getfenv(Function))
     end
 
-    if getgc and getconstants and setconstant then
-        for _, Function in ipairs(getgc(true)) do
-            if typeof(Function) == "function" and islclosure(Function) then
-                local ok, Source = pcall(debug.info, Function, "s")
-                if ok and type(Source) == "string" and Source:find("ReplicatedFirst", 1, true) and Source:find("UGI", 1, true) then
-                    local okC, Constants = pcall(getconstants, Function)
-                    if okC and type(Constants) == "table" then
-                        for Index, Constant in next, Constants do
-                            if type(Constant) == "string" and Constant == "Humanoid" then
-                                pcall(setconstant, Function, Index, "")
+    if typeof(filtergc) == "function" and getconstants and setconstant then
+        local okF, fns = pcall(function()
+            return filtergc("function", { Constants = { "Humanoid" } })
+        end)
+        if okF and type(fns) == "table" then
+            for _, Function in ipairs(fns) do
+                if typeof(Function) == "function" and islclosure(Function) then
+                    local ok, Source = pcall(debug.info, Function, "s")
+                    if ok and type(Source) == "string" and Source:find("ReplicatedFirst", 1, true) and Source:find("UGI", 1, true) then
+                        local okC, Constants = pcall(getconstants, Function)
+                        if okC and type(Constants) == "table" then
+                            for Index, Constant in next, Constants do
+                                if type(Constant) == "string" and Constant == "Humanoid" then
+                                    pcall(setconstant, Function, Index, "")
+                                end
                             end
                         end
                     end
@@ -2068,51 +2123,26 @@ pcall(function()
     local getconstants = getconstants or (debug and debug.getconstants)
     local islclosure = islclosure or function(fn) return not pcall(setfenv, getfenv(fn)) end
     local HookFn = hookfunction or replaceclosure or hookfunc
-    if getgc and getconstants and HookFn and debug and debug.getstack and debug.setstack then
-        for _, fn in ipairs(getgc(true)) do
-            if typeof(fn) == "function" and islclosure(fn) then
-                local ok, consts = pcall(getconstants, fn)
-                if ok and type(consts) == "table" and table.find(consts, "X-14") then
-                    local cb = nil
-                    cb = HookFn(fn, function(...)
-                        local stack = debug.getstack(1)
-                        if type(stack) == "table" then
-                            for idx, val in pairs(stack) do
-                                if val == "X-14" then
-                                    pcall(debug.setstack, 1, idx, nil)
+    if typeof(filtergc) == "function" and getconstants and HookFn and debug and debug.getstack and debug.setstack then
+        local okF, fns = pcall(function()
+            return filtergc("function", { Constants = { "X-14" } })
+        end)
+        if okF and type(fns) == "table" then
+            for _, fn in ipairs(fns) do
+                if typeof(fn) == "function" and islclosure(fn) then
+                    local ok, consts = pcall(getconstants, fn)
+                    if ok and type(consts) == "table" and table.find(consts, "X-14") then
+                        local cb = nil
+                        cb = HookFn(fn, function(...)
+                            local stack = debug.getstack(1)
+                            if type(stack) == "table" then
+                                for idx, val in pairs(stack) do
+                                    if val == "X-14" then
+                                        pcall(debug.setstack, 1, idx, nil)
+                                    end
                                 end
                             end
-                        end
-                        if cb then return cb(...) end
-                    end)
-                end
-            end
-        end
-    end
-end)
-
-
-pcall(function()
-    local getgc = getgc or (debug and debug.getgc)
-    local islclosure = islclosure or function(v) return not pcall(setfenv, getfenv(v)) end
-    local getupvalues = getupvalues or (debug and debug.getupvalues)
-    local getupvalue = getupvalue or (debug and debug.getupvalue)
-    local setupvalue = setupvalue or (debug and debug.setupvalue)
-    local clonefunction = clonefunction or function(f) return function(...) return f(...) end end
-
-    if getgc and getupvalues and getupvalue and setupvalue then
-        for _, v in ipairs(getgc(true)) do
-            if typeof(v) == "function" and islclosure(v) then
-                local ok, upvs = pcall(getupvalues, v)
-                if ok and upvs and #upvs == 19 then
-                    local ok2, u2 = pcall(getupvalue, v, 2)
-                    if ok2 and typeof(u2) == "function" then
-                        local old = clonefunction(u2)
-                        pcall(setupvalue, v, 2, function(a, b)
-                            if b and typeof(b) == "table" then
-                                pcall(setmetatable, b, {})
-                            end
-                            return old(a, b)
+                            if cb then return cb(...) end
                         end)
                     end
                 end
@@ -2124,24 +2154,6 @@ end)
 
 
 
-local function findChar() return LP.Character end
-local function findHum()
-    local ch = LP.Character
-    return ch and ch:FindFirstChildOfClass("Humanoid")
-end
-local function findHRP()
-    local ch = LP.Character
-    return ch and (ch:FindFirstChild("HumanoidRootPart") or ch.PrimaryPart or ch:FindFirstChildWhichIsA("BasePart"))
-end
-
-local GetCharacter = findChar
-local GetHumanoid  = findHum
-local GetHRP       = findHRP
-
-local function GetRootCFrame()
-    local hrp = findHRP()
-    return hrp and hrp.CFrame
-end
 
 
 
@@ -2313,7 +2325,7 @@ if anyRemote and HookFn then
 end
 
 task.spawn(function()
-    while not HUB.dead do
+    while bypassActive do
         task.wait(10)
         local alive = false
         for r in pairs(remoteSet) do
@@ -2330,32 +2342,27 @@ end)
 
 
 task.spawn(function()
-    if not getgc then return end
+    if typeof(filtergc) ~= "function" then return end
     local st = nil
 
     local function findIntegrityTable()
-        local ok, objs = pcall(getgc, true)
-        if ok and objs then
-            for _, o in pairs(objs) do
-                if type(o) == "table" then
-                    local hit = false
-                    pcall(function()
-                        hit = (rawget(o, "ValidationLocked") ~= nil and rawget(o, "Evidence") ~= nil)
-                            or (rawget(o, "ThreatLevel") ~= nil and rawget(o, "LastObservedSample") ~= nil)
-                    end)
-                    if hit then return o end
-                end
-            end
-        end
+        local okV, ov = pcall(function()
+            return filtergc("table", { Keys = { "ValidationLocked", "Evidence" } }, true)
+        end)
+        if okV and type(ov) == "table" then return ov end
+        local okT, ot = pcall(function()
+            return filtergc("table", { Keys = { "ThreatLevel", "LastObservedSample" } }, true)
+        end)
+        if okT and type(ot) == "table" then return ot end
         return nil
     end
 
-    track(LP.CharacterAdded:Connect(function()
+    LP.CharacterAdded:Connect(function()
         task.wait(1)
         st = findIntegrityTable()
-    end))
+    end)
 
-    while not HUB.dead do
+    while bypassActive do
         if not st then
             st = findIntegrityTable()
         end
@@ -2388,6 +2395,36 @@ task.spawn(function()
         task.wait(0.2)
     end
 end)
+end
+
+HUB.keyDone = false
+HUB.keyResult = nil
+HUB.ShowKeyDialog(function(ok) HUB.keyDone = true HUB.keyResult = ok end)
+while not HUB.keyDone and not HUB.dead do task.wait(0.1) end
+if HUB.keyResult == false then
+    HUB.dead = true
+    _G.AetherHub = nil
+    return
+end
+local Window = Library:CreateWindow({
+    Name = "Aether HUB | Steal an Egg",
+    LoadingAnimation = true,
+    LoadingText = "Aether",
+    LoadingDuration = 2.0,
+})
+
+local function safeCallback(fn)
+    return function(...)
+        local ok, err = pcall(fn, ...)
+        if not ok then
+            pcall(Notify, "Aether HUB", "Error: " .. tostring(err), "Error", 4)
+        end
+    end
+end
+
+
+
+
 
 
 
@@ -2842,6 +2879,98 @@ local RARITY_NAMES = {
     "Squishy God", "Legendary", "Epic", "Rare", "Uncommon", "Common"
 }
 
+local function mergeLiveData()
+    pcall(function()
+        if typeof(RarityData) == "table" then
+            local dir = RarityData.Rarities or RarityData
+            local seen = {}
+            for _, n in ipairs(RARITY_NAMES) do seen[n] = true end
+            local added = false
+            for _, item in pairs(dir) do
+                local name = nil
+                if type(item) == "table" then
+                    name = item.DisplayName or item._id or item.Name
+                elseif type(item) == "string" then
+                    name = item
+                end
+                name = tostring(name)
+                if #name > 0 and not seen[name] then
+                    seen[name] = true
+                    table.insert(RARITY_NAMES, name)
+                    added = true
+                end
+            end
+            if added then
+                table.sort(RARITY_NAMES, function(a, b)
+                    return (RARITY_SCORE_MAP[a] or 0) > (RARITY_SCORE_MAP[b] or 0)
+                end)
+            end
+        end
+    end)
+    local getAreaName = function(id, nfo)
+        if type(nfo) == "table" and type(nfo.DisplayName) == "string" and #nfo.DisplayName > 0 then return nfo.DisplayName end
+        if type(id) == "string" then return id end
+        return nil
+    end
+    pcall(function()
+        if typeof(AreasData) == "table" then
+            local dir = AreasData.Areas or AreasData.Directory or AreasData
+            local seenArea = {}
+            for _, n in ipairs(AREA_NAMES) do seenArea[n] = true end
+            for id, nfo in pairs(dir) do
+                local name = getAreaName(id, nfo)
+                if name and not seenArea[name] then
+                    seenArea[name] = true
+                    table.insert(AREA_NAMES, name)
+                end
+                if type(nfo) == "table" then
+                    local ct = nfo.CenterPoint or nfo.Spawn or nfo.TeleportPoint
+                    local pos = nil
+                    if type(ct) == "table" then
+                        if type(ct.Position) == "userdata" then pos = ct.Position
+                        elseif type(ct.Position) == "table" and ct.Position.X then pos = Vector3.new(ct.Position.X, ct.Position.Y, ct.Position.Z)
+                        elseif ct.X then pos = Vector3.new(ct.X, ct.Y, ct.Z) end
+                    elseif type(ct) == "userdata" and pcall(function() return ct.X end) then
+                        pos = ct
+                    end
+                    if pos and name and not AREA_COORDINATES[name] then
+                        AREA_COORDINATES[name] = pos
+                    end
+                end
+            end
+        end
+    end)
+    pcall(function()
+        if typeof(Workspace.__OBJECTS) == "userdata" and Workspace.__OBJECTS:FindFirstChild("Areas") then
+            local root = Workspace.__OBJECTS.Areas
+            local seenArea = {}
+            for _, n in ipairs(AREA_NAMES) do seenArea[n] = true end
+            for _, folder in ipairs(root:GetChildren()) do
+                if folder:IsA("Folder") or folder:IsA("Model") then
+                    local name = folder.Name
+                    if name and not seenArea[name] then
+                        seenArea[name] = true
+                        table.insert(AREA_NAMES, name)
+                        if not AREA_COORDINATES[name] then
+                            local model = folder:FindFirstChildWhichIsA("Model", true)
+                            if model then
+                                local pos = nil
+                                pcall(function() pos = model:GetPivot().Position end)
+                                if pos then AREA_COORDINATES[name] = pos end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+task.spawn(function()
+    task.wait(0.5)
+    if HUB.dead then return end
+    mergeLiveData()
+end)
+
 local MUTATION_FILTERS = {
     "Normal Only", "Mutated Only", "Parasite / Infested", "Rainbow Only", "Gold Only", "Silver Only", "Monstrous"
 }
@@ -3262,6 +3391,7 @@ local function StealSpecificEggRobust(targetItem)
     local safeCFrame = CFrame.new(safePlotCenter + Vector3.new(0, 1.2, 0))
     local tPickup = os.clock()
     local carried = false
+    local rePicked = false
     local instantFired = false
     local conns = {}
     local function fireInstantNow()
@@ -3520,6 +3650,7 @@ local function StealSpecificEggRobust(targetItem)
                 if isPlayerCarryingEgg() then
                     task.wait(0.12)
                     isInstantTP = false
+                    rePicked = true
                 else
                     
                     task.wait(0.12)
@@ -3534,7 +3665,7 @@ local function StealSpecificEggRobust(targetItem)
                         end
                     end
                     task.wait(0.12)
-                    if isPlayerCarryingEgg() then carried = true isInstantTP = false end
+                    if isPlayerCarryingEgg() then carried = true rePicked = true end
                 end
             end
         end
@@ -3550,7 +3681,13 @@ local function StealSpecificEggRobust(targetItem)
             end)
         end
     else
-        if speed > 250 then
+        if rePicked then
+            bypassReturnTP(safeCFrame, 0.3)
+            task.spawn(function()
+                pcall(restoreCollisions)
+                pcall(PlantAllCarriedEggsInPen)
+            end)
+        elseif speed > 250 then
             local hrpNow = findHRP()
             local curPos = hrpNow and hrpNow.Position or targetPos
             local toBase = safePlotCenter - curPos
@@ -4259,6 +4396,8 @@ local infiniteJump     = false
 local flying           = false
 local flySpeed         = 60
 local antiAFK          = false
+local slideEnabled     = false
+local slideSpeed       = 90
 
 local function ApplyWalkSpeed(v)
     walkSpeedVal = v
@@ -4281,6 +4420,23 @@ track(RunService.Stepped:Connect(function()
     if hum then
         if walkSpeedEnabled then hum.WalkSpeed = walkSpeedVal end
         if jumpPowerEnabled then hum.UseJumpPower = true; hum.JumpPower = jumpPowerVal end
+    end
+    if slideEnabled and not HUB.dead then
+        local hrp = findHRP()
+        local cam = GetCamera()
+        if hrp and cam and hum then
+            local st = hum:GetState()
+            local grounded = st == Enum.HumanoidStateType.Running or st == Enum.HumanoidStateType.Walking or st == Enum.HumanoidStateType.Jumping
+            if grounded and UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                local look = cam.CFrame.LookVector
+                local flat = Vector3.new(look.X, 0, look.Z)
+                if flat.Magnitude > 0.001 then
+                    flat = flat.Unit
+                    local vel = hrp.AssemblyLinearVelocity
+                    hrp.AssemblyLinearVelocity = Vector3.new(flat.X * slideSpeed, vel.Y, flat.Z * slideSpeed)
+                end
+            end
+        end
     end
 end))
 
@@ -4371,7 +4527,48 @@ local EggsTab     = Window:AddTab({ Name = "Eggs", Subtitle = "Steal, hatch & pl
 local BaseTab     = Window:AddTab({ Name = "Base", Subtitle = "Homestead & training", Icon = "bolt" })
 local CombatTab   = Window:AddTab({ Name = "Combat", Subtitle = "Bat, slaps & defense", Icon = "combat" })
 local PlayerTab   = Window:AddTab({ Name = "Player", Subtitle = "Movement & teleports", Icon = "player" })
+local PremiumTab  = Window:AddTab({ Name = "Premium", Subtitle = "Premium features & status", Icon = "diamond" })
 local SettingsTab = Window:AddTab({ Name = "Settings", Subtitle = "Configs & unloader", Icon = "gear" })
+
+do
+local PremSub = PremiumTab:AddSubTab("Premium")
+PremSub:_run(function(sc)
+    sc:Label("Activate a Premium key to unlock:", "Join the Discord to get one: discord.gg/SK7mHYVW2P")
+    sc:Label("• Egg ESP + Trap ESP", "See eggs, traps and players through walls.")
+    sc:Label("• Auto Sell low-tier pets & eggs", "Keeps your inventory clear automatically.")
+    sc:Label("• Hop until a filtered egg is found", "Server hop helper for rare egg hunts.")
+    sc:Label("• Sell Selected Pets / Eggs instantly", "One-click bulk selling by rarity.")
+    sc:Label("", nil)
+end)
+HUB.premT = PremSub:AddToggle({
+    Name = "Premium Status [PREMIUM]", Default = false, Flag = "premium_status",
+    Callback = function()
+        if HUB.premium then Notify("Premium", "Premium active — all features unlocked.", "Success")
+        else Notify("Premium", "No Premium key active. Join the Discord for one.", "Info", 5) end
+    end
+})
+PremSub:AddInput({
+    Name = "Premium Key", Default = "", Flag = "premium_key_input",
+    Callback = function(v) HUB.keyInput = tostring(v or "") end
+})
+PremSub:AddButton({
+    Name = "Activate Premium Key", Primary = true,
+    Callback = safeCallback(function()
+        local ok = HUB.ActivatePremium(HUB.keyInput or "")
+        if ok then HUB.premT:Set(true); HUB.preHook() end
+    end)
+})
+PremSub:AddButton({
+    Name = "Check Key Status",
+    Callback = safeCallback(function()
+        if HUB.premium then HUB.premT:Set(true); Notify("Premium", "Premium active. Enjoy!", "Success")
+        else HUB.premT:Set(false); Notify("Premium", "No Premium key active. Join the Discord for one.", "Info", 5) end
+    end)
+})
+HUB.preHook = function()
+    if HUB.premT then HUB.premT:Set(HUB.premium == true) end
+end
+end
 
 
 
@@ -4493,15 +4690,24 @@ HUB.espT = EggEspSub:AddToggle({
 })
 EggEspSub:AddToggle({
     Name = "Show 3D Pet Image Badges", Default = true, Flag = "esp_pet_icons",
-    Callback = function(v) esp.showPetIcons = v end
+    Callback = safeCallback(function(v)
+        if v and not HUB.premium then Notify("Premium", "Premium needed for ESP.", "Error", 5) return end
+        esp.showPetIcons = v
+    end)
 })
 EggEspSub:AddToggle({
     Name = "Trap ESP (Highlights Enemy Traps)", Default = false, Flag = "esp_traps",
-    Callback = function(v) esp.traps = v end
+    Callback = safeCallback(function(v)
+        if v and not HUB.premium then Notify("Premium", "Premium needed for ESP.", "Error", 5) return end
+        esp.traps = v
+    end)
 })
 EggEspSub:AddToggle({
     Name = "Show Mutated / Rare Eggs Only", Default = false, Flag = "esp_eggs_rare_only",
-    Callback = function(v) esp.rareEggsOnly = v end
+    Callback = safeCallback(function(v)
+        if v and not HUB.premium then Notify("Premium", "Premium needed for ESP.", "Error", 5) return end
+        esp.rareEggsOnly = v
+    end)
 })
 EggEspSub:AddSlider({
     Name = "Max ESP Distance", Min = 100, Max = 2500, Default = 800, Suffix = " studs", Flag = "esp_max_dist",
@@ -4760,6 +4966,14 @@ MoveSub:AddSlider({
 MoveSub:AddToggle({
     Name = "Anti-AFK (Bypass 20min Kick)", Default = false, Flag = "anti_afk",
     Callback = function(v) SetAntiAFK(v) end
+})
+MoveSub:AddToggle({
+    Name = "Slide Boost (hold W to slide)", Default = false, Flag = "slide_boost",
+    Callback = function(v) slideEnabled = v end
+})
+MoveSub:AddSlider({
+    Name = "Slide Speed", Min = 40, Max = 250, Default = 90, Suffix = " studs/s", Flag = "slide_speed",
+    Callback = function(v) slideSpeed = v end
 })
 
 
@@ -5046,6 +5260,7 @@ task.spawn(function()
                     HUB.key = data.key
                     HUB.keyInput = data.key
                     if data.tier == "premium" then HUB.premium = true else HUB.premium = false end
+                    if type(HUB.preHook) == "function" then task.spawn(HUB.preHook) end
                 end
             end)
         end
